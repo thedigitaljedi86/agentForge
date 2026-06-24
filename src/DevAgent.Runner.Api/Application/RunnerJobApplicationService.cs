@@ -105,6 +105,74 @@ public sealed class RunnerJobApplicationService
         };
     }
 
+    public async Task<AgentJobResult> StartDotNetUpgradeAsync(
+        DotNetUpgradeJobRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        // 1. Job type allowlist.
+        var jobTypeCheck = _policies.JobTypes.Validate(request.JobType);
+        if (!jobTypeCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "job-type", jobTypeCheck, cancellationToken);
+        }
+
+        // 2. Repository allowlist (resolves a KEY, never a raw URL).
+        var repoCheck = _policies.Repositories.Validate(request.RepositoryKey);
+        if (!repoCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "repository", repoCheck, cancellationToken);
+        }
+
+        // 3. Target framework allowlist + format.
+        var frameworkCheck = _policies.TargetFrameworks.Validate(request.TargetFramework);
+        if (!frameworkCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "target-framework", frameworkCheck, cancellationToken);
+        }
+
+        // 4. Resolve trusted values from policy.
+        var repository = _policies.Repositories.Resolve(request.RepositoryKey);
+        var image = _policies.JobTypes.ResolveImage(request.JobType);
+
+        // 5. Container image allowlist (defence in depth).
+        var imageCheck = _policies.ContainerImages.Validate(image);
+        if (!imageCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "container-image", imageCheck, cancellationToken);
+        }
+
+        // 6. Build the fully-validated sandbox request and dispatch.
+        var sandboxRequest = new SandboxJobRequest
+        {
+            JobId = request.JobId,
+            JobType = request.JobType,
+            CloneUrl = repository.CloneUrl,
+            BaseBranch = repository.BaseBranch,
+            ContainerImage = image,
+            TargetFramework = request.TargetFramework,
+            OnlyUpgrade = request.OnlyUpgrade,
+        };
+
+        await _audit.WriteAsync(new DecisionAuditEvent
+        {
+            JobId = request.JobId,
+            Actor = nameof(RunnerJobApplicationService),
+            Decision = "start-sandbox-job",
+            Allowed = true,
+            Reason = $"All allowlists passed for {request.RepositoryKey} -> {request.TargetFramework}.",
+        }, cancellationToken);
+
+        var sandboxResult = await _sandboxRunner.RunAsync(sandboxRequest, cancellationToken);
+
+        return new AgentJobResult
+        {
+            JobId = sandboxResult.JobId,
+            Status = sandboxResult.Status,
+            Message = sandboxResult.Message,
+            PullRequestUrl = sandboxResult.PullRequestUrl,
+        };
+    }
+
     private async Task<AgentJobResult> RejectAsync(
         string jobId, string gate, ValidationResult result, CancellationToken cancellationToken)
     {

@@ -304,6 +304,20 @@
   }'</span></code></pre></div>
     <p class="card">Hub'en videresender til Runner på <code>localhost:5081</code>. Kører Runner ikke, får du <code>HTTP 500</code> — start Runner først.</p>
 
+    <h3><span class="tag post">POST</span> &nbsp;Trigger en .NET-opgradering via Hub</h3>
+    <div class="code"><div class="bar"><span>POST /hub/dotnetupgrader/upgrade</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">curl</span> -X POST http://localhost:5080/hub/dotnetupgrader/upgrade <span class="c-pun">\</span>
+  -H <span class="c-str">"Content-Type: application/json"</span> <span class="c-pun">\</span>
+  -d <span class="c-str">'{
+    "repositoryKey":  "sample-service",
+    "targetFramework": "net8.0",
+    "requestedBy":     "nikolaj"
+  }'</span>
+
+<span class="c-cmt"># ▸ status 2 (Validated) — opgraderer alle projekter til net8.0 i sandbox-worker'en.</span>
+<span class="c-cmt"># Runner afviser frameworks uden for allowlisten (fx net7.0) med status 7 (Rejected).</span></code></pre></div>
+    <p class="card">Samme nøgle-baserede gate som NuGet-flowet: <code>repositoryKey</code> + <code>targetFramework</code> valideres mod allowlisten (repo, jobtype, framework) før noget køres.</p>
+
     <h3><span class="tag post">POST</span> &nbsp;Kald Runner direkte — accepteret job</h3>
     <div class="code"><div class="bar"><span>POST /runner/jobs/nuget-update · ✓ allowlisted</span><button class="copy">Kopiér</button></div>
 <pre><code><span class="c-fn">curl</span> -X POST http://localhost:5081/runner/jobs/nuget-update <span class="c-pun">\</span>
