@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Worker.DotNet.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DevAgent.Worker.DotNet\DevAgent.Worker.DotNet.csproj" />
+  </ItemGroup>
+
+</Project>

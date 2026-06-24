@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Bridge.Git abstracts Git hosting providers (GitHub, GitLab,
+    Azure DevOps, Bitbucket). First milestone: interfaces + DTOs + a
+    placeholder implementation. Provider-specific details are intentionally
+    NOT hardcoded yet.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Bridge.Git</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

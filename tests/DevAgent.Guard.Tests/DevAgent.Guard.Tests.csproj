@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Guard.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DevAgent.Guard\DevAgent.Guard.csproj" />
+  </ItemGroup>
+
+</Project>

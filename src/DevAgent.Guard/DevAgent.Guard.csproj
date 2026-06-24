@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Guard is the platform's security and policy layer.
+    Everything risky (command execution, path access, target resolution) is
+    funnelled through here. There is intentionally NO API surface for running
+    arbitrary commands, arbitrary images or arbitrary repository URLs.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Guard</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
