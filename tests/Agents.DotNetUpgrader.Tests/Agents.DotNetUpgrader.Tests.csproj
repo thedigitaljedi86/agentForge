@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Agents.DotNetUpgrader.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Agents.DotNetUpgrader\Agents.DotNetUpgrader.csproj" />
+  </ItemGroup>
+
+</Project>

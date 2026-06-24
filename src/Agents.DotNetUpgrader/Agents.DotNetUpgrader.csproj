@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Agents.DotNetUpgrader is a CONCRETE AGENT that proposes upgrading the .NET
+    target framework of every project in a watched repository (e.g. net6.0 ->
+    net8.0). Like DependencyPilot it lives OUTSIDE the platform core: it only
+    PROPOSES work by key via the trigger seam; the Runner validates and a sandbox
+    worker performs the deterministic rewrite + build/test, opening a
+    review-required pull request.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Agents.DotNetUpgrader</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+    <ProjectReference Include="..\DevAgent.Bridge.Llm\DevAgent.Bridge.Llm.csproj" />
+  </ItemGroup>
+
+</Project>
