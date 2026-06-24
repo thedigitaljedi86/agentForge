@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DevAgent — Kom godt i gang</title>
+<style>
+  :root {
+    --bg: #0b1020;
+    --bg-soft: #121a32;
+    --card: #161f3d;
+    --card-2: #1b2747;
+    --line: #28335a;
+    --text: #e7ecf7;
+    --muted: #9aa6c7;
+    --brand: #6ea8fe;
+    --brand-2: #a78bfa;
+    --green: #4ade80;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --code-bg: #0c1226;
+    --radius: 14px;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    color: var(--text);
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(110,168,254,.18), transparent 60%),
+      radial-gradient(900px 500px at -10% 10%, rgba(167,139,250,.16), transparent 55%),
+      var(--bg);
+    line-height: 1.6;
+  }
+  a { color: var(--brand); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 22px; }
+
+  /* Header */
+  header.hero {
+    padding: 72px 0 48px;
+    border-bottom: 1px solid var(--line);
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; color: var(--muted);
+    background: var(--bg-soft); border: 1px solid var(--line);
+    padding: 6px 12px; border-radius: 999px;
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); }
+  h1 {
+    font-size: clamp(34px, 6vw, 56px); line-height: 1.05; margin: 20px 0 12px;
+    background: linear-gradient(120deg, #fff 10%, var(--brand) 55%, var(--brand-2) 95%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    letter-spacing: -.02em;
+  }
+  .lead { font-size: 19px; color: var(--muted); max-width: 720px; }
+  .hero-cta { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 18px; border-radius: 10px; font-weight: 600; font-size: 15px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+    cursor: pointer;
+  }
+  .btn.primary {
+    background: linear-gradient(120deg, var(--brand), var(--brand-2));
+    color: #0b1020; border: none;
+  }
+  .btn:hover { transform: translateY(-1px); }
+
+  /* Layout */
+  main { display: grid; grid-template-columns: 220px 1fr; gap: 40px; padding: 44px 0 90px; }
+  nav.toc { position: sticky; top: 24px; align-self: start; font-size: 14.5px; }
+  nav.toc a { display: block; color: var(--muted); padding: 6px 10px; border-left: 2px solid transparent; border-radius: 0 6px 6px 0; }
+  nav.toc a:hover { color: var(--text); background: var(--bg-soft); text-decoration: none; }
+  nav.toc strong { display:block; color: var(--text); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; margin: 18px 0 6px 10px; }
+  nav.toc strong:first-child { margin-top: 0; }
+
+  section { margin-bottom: 52px; scroll-margin-top: 24px; }
+  section > h2 { font-size: 26px; margin: 0 0 6px; letter-spacing: -.01em; }
+  section > h2 .num { color: var(--brand); font-variant-numeric: tabular-nums; margin-right: 10px; }
+  section .sub { color: var(--muted); margin: 0 0 22px; }
+  h3 { font-size: 18px; margin: 28px 0 10px; }
+
+  /* Cards */
+  .grid { display: grid; gap: 16px; }
+  .grid.two { grid-template-columns: 1fr 1fr; }
+  .grid.three { grid-template-columns: repeat(3, 1fr); }
+  .card {
+    background: linear-gradient(180deg, var(--card), var(--card-2));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 20px;
+  }
+  .card h4 { margin: 0 0 6px; font-size: 16px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+  .pill { font-family: var(--mono); font-size: 12px; padding: 2px 8px; border-radius: 6px; background: var(--bg-soft); border: 1px solid var(--line); color: var(--brand); }
+
+  /* Code blocks */
+  .code {
+    position: relative; background: var(--code-bg); border: 1px solid var(--line);
+    border-radius: 12px; margin: 14px 0; overflow: hidden;
+  }
+  .code .bar { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.02); }
+  .code .bar span { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .copy { background: var(--card); border: 1px solid var(--line); color: var(--muted); font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer; }
+  .copy:hover { color: var(--text); }
+  .copy.done { color: var(--green); border-color: var(--green); }
+  pre { margin: 0; padding: 16px; overflow-x: auto; }
+  code, pre { font-family: var(--mono); font-size: 13.5px; }
+  pre code { color: #cfd8f7; }
+  .c-key { color: var(--brand); }
+  .c-str { color: var(--green); }
+  .c-cmt { color: #6b7699; font-style: italic; }
+  .c-fn { color: var(--amber); }
+  .c-pun { color: var(--muted); }
+  p code, li code, td code { background: var(--bg-soft); border: 1px solid var(--line); padding: 1px 6px; border-radius: 5px; font-size: 12.5px; color: #cfe0ff; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; }
+  td .pill { white-space: nowrap; }
+
+  /* Steps */
+  .steps { counter-reset: step; display: grid; gap: 14px; }
+  .step { display: grid; grid-template-columns: 38px 1fr; gap: 14px; align-items: start; }
+  .step .n { counter-increment: step; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-weight: 700;
+    background: linear-gradient(120deg, var(--brand), var(--brand-2)); color: #0b1020; }
+  .step .n::before { content: counter(step); }
+
+  /* Callouts */
+  .note { border-left: 3px solid var(--brand); background: var(--bg-soft); padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 16px 0; color: var(--text); }
+  .note.warn { border-color: var(--amber); }
+  .note.warn strong { color: var(--amber); }
+  .note strong { color: var(--brand); }
+
+  .tag { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.04em; padding:2px 8px; border-radius:6px; text-transform:uppercase; }
+  .tag.get { background: rgba(74,222,128,.15); color: var(--green); }
+  .tag.post { background: rgba(110,168,254,.15); color: var(--brand); }
+
+  .s-ok { color: var(--green); } .s-rej { color: var(--red); } .s-warn { color: var(--amber); }
+
+  footer { border-top: 1px solid var(--line); padding: 30px 0 60px; color: var(--muted); font-size: 14px; }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    nav.toc { display: none; }
+    .grid.two, .grid.three { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge"><span class="dot"></span> .NET 8 · Politik-styret skelet · LLM-klienter: Claude · ChatGPT · Gemini</span>
+    <h1>DevAgent</h1>
+    <p class="lead">En sikker platform til at køre interne AI-agenter for udvikler-workflows. Første agent — <strong>DependencyPilot</strong> — opdager nye NuGet-versioner og åbner pull requests med opdateringer. Hvert job løber gennem en politik-styret valideringsgate, før noget som helst eksekveres.</p>
+    <div class="hero-cta">
+      <a class="btn primary" href="#kom-igang">⚡ Kom i gang</a>
+      <a class="btn" href="#eksempler">📡 Se API-eksempler</a>
+      <a class="btn" href="#sikkerhed">🛡️ Sikkerhedsmodel</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+  <nav class="toc">
+    <strong>Indhold</strong>
+    <a href="#overblik">Overblik</a>
+    <a href="#arkitektur">Arkitektur</a>
+    <a href="#kom-igang">Kom i gang</a>
+    <a href="#brugergraensefladen">Hvor er UI'en?</a>
+    <a href="#eksempler">API-eksempler</a>
+    <a href="#status">Job-statuskoder</a>
+    <a href="#allowlist">Allowlist-config</a>
+    <a href="#sikkerhed">Sikkerhedsmodel</a>
+    <a href="#llm">LLM-providere</a>
+    <a href="#begraensninger">Begrænsninger</a>
+  </nav>
+
+  <div>
+
+  <!-- OVERBLIK -->
+  <section id="overblik">
+    <h2><span class="num">01</span>Overblik</h2>
+    <p class="sub">Hvad systemet er, og hvad det ikke er (endnu).</p>
+    <div class="grid three">
+      <div class="card">
+        <h4>🎯 Formål</h4>
+        <p>Køre interne, sikre udvikler-agenter — planlagt, event-baseret og senere interaktivt. Resultatet er <strong>altid en pull request</strong>, aldrig en auto-merge.</p>
+      </div>
+      <div class="card">
+        <h4>🤖 DependencyPilot</h4>
+        <p>Den første agent: opdager nye NuGet-versioner, finder berørte repos og åbner PR'er, der opdaterer afhængigheder sikkert.</p>
+      </div>
+      <div class="card">
+        <h4>🚧 Status</h4>
+        <p>Et deterministisk, politik-styret <strong>skelet</strong> med LLM-klienter til <strong>Claude (standard), ChatGPT og Gemini</strong>. Hver agent kan vælge sin egen model, og modellen kan kun handle via strukturerede, politik-checkede værktøjer.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARKITEKTUR -->
+  <section id="arkitektur">
+    <h2><span class="num">02</span>Arkitektur</h2>
+    <p class="sub">To webservices + en sandbox-worker. Hver pil skærer adgang væk.</p>
+    <div class="code">
+      <div class="bar"><span>request-flow</span></div>
+<pre><code>  <span class="c-fn">Hub.Api</span>  ──(nøgler + version)──▶  <span class="c-fn">Runner.Api</span>  ──(valideret, opslået)──▶  <span class="c-fn">Sandbox-worker</span>
+     <span class="c-pun">│</span>                              <span class="c-pun">│</span>                                  <span class="c-pun">│</span>
+  manuel trigger /            <span class="c-key">allowlist-gate:</span>                  clone ▸ branch ▸
+  Hangfire-tidsplan           repo? pakke? image? jobtype?     opdatér PackageReference ▸
+                              opslår NØGLE ▸ betroet URL/image  restore/build/test ▸
+                                                                push ▸ åbn PR (aldrig merge)</code></pre>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <h4><span class="pill">Hub.Api</span> · port 5080</h4>
+        <p>Hoveddøren. Tager manuelle triggers og kører Hangfire-tidsplanen. Videresender til Runner over HTTP — sender kun <em>nøgler</em>, aldrig URL'er.</p>
+      </div>
+      <div class="card">
+        <h4><span class="pill">Runner.Api</span> · port 5081</h4>
+        <p>Valideringsgaten. Re-validerer <em>hvert</em> job mod allowlists for repo / pakke / image / jobtype og opslår nøgler til betroede URL'er og images.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- KOM I GANG -->
+  <section id="kom-igang">
+    <h2><span class="num">03</span>Kom i gang</h2>
+    <p class="sub">Forudsætning: .NET 8 SDK. Faste porte er sat op via <code>launchSettings.json</code>.</p>
+    <div class="steps">
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Byg og kør testene</h3>
+        <div class="code"><div class="bar"><span>bash</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">dotnet</span> build DevAgent.sln
+<span class="c-fn">dotnet</span> test  DevAgent.sln   <span class="c-cmt"># 134 tests skal bestå</span></code></pre></div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Start Runner (valideringsgaten) — denne skal køre først</h3>
+        <div class="code"><div class="bar"><span>terminal 1</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">dotnet</span> run --project src/DevAgent.Runner.Api --launch-profile Runner</code></pre></div>
+        <p class="card" style="margin-top:8px">Lytter på <code>http://localhost:5081</code> · åbner <code>/health</code> i browseren.</p>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Start Hub (i et andet vindue)</h3>
+        <div class="code"><div class="bar"><span>terminal 2</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">dotnet</span> run --project src/DevAgent.Hub.Api --launch-profile Hub</code></pre></div>
+        <p class="card" style="margin-top:8px">Lytter på <code>http://localhost:5080</code> · åbner Hangfire-dashboardet automatisk.</p>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Brug systemet</h3>
+        <p>Åbn dashboardet på <a href="http://localhost:5080/hangfire">localhost:5080/hangfire</a> eller trigger et job via API — se <a href="#eksempler">eksemplerne nedenfor</a>.</p>
+      </div></div>
+    </div>
+    <div class="note"><strong>Tip:</strong> Med <code>launchSettings.json</code> på plads behøver du ikke sætte <code>ASPNETCORE_URLS</code> — F5 i Visual Studio / Rider eller <code>dotnet run --launch-profile</code> bruger nu de faste porte 5080 og 5081.</div>
+  </section>
+
+  <!-- UI -->
+  <section id="brugergraensefladen">
+    <h2><span class="num">04</span>Hvor er brugergrænsefladen?</h2>
+    <p class="sub">Der er bevidst ingen skræddersyet app-UI endnu — systemet styres via HTTP-API'er.</p>
+    <div class="grid two">
+      <div class="card">
+        <h4>📊 Hangfire-dashboard</h4>
+        <p>Den eneste indbyggede webside: <code>/hangfire</code> på Hub'en. Her ser du planlagte, kørende og fejlede jobs — fx det timebaserede <code>dependencypilot-package-check</code>.</p>
+      </div>
+      <div class="card">
+        <h4>📡 REST-API</h4>
+        <p>Al styring sker via JSON over HTTP — fra curl, Postman, et script eller (på sigt) en frontend. Denne side er din interaktive reference.</p>
+      </div>
+    </div>
+    <div class="note">Denne HTML-side er <strong>dokumentation</strong>, ikke en live-konsol. Kør kommandoerne i din terminal — knapperne kopierer dem til udklipsholderen.</div>
+  </section>
+
+  <!-- EKSEMPLER -->
+  <section id="eksempler">
+    <h2><span class="num">05</span>API-eksempler</h2>
+    <p class="sub">Kopiér-klar curl. Bemærk: <code>repositoryKey</code> og <code>packageId</code> er <strong>allowlist-nøgler</strong>, ikke rå URL'er.</p>
+
+    <h3><span class="tag get">GET</span> &nbsp;Health-check</h3>
+    <div class="code"><div class="bar"><span>begge services svarer ens</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">curl</span> http://localhost:5080/health   <span class="c-cmt"># Hub</span>
+<span class="c-fn">curl</span> http://localhost:5081/health   <span class="c-cmt"># Runner</span>
+
+<span class="c-cmt"># ▸ {"status":"ok","service":"DevAgent.Hub"}</span></code></pre></div>
+
+    <h3><span class="tag post">POST</span> &nbsp;Trigger et NuGet-update via Hub (den normale vej)</h3>
+    <div class="code"><div class="bar"><span>POST /hub/dependencypilot/nuget-update</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">curl</span> -X POST http://localhost:5080/hub/dependencypilot/nuget-update <span class="c-pun">\</span>
+  -H <span class="c-str">"Content-Type: application/json"</span> <span class="c-pun">\</span>
+  -d <span class="c-str">'{
+    "repositoryKey": "sample-service",
+    "packageId":     "Serilog",
+    "targetVersion": "3.1.1",
+    "requestedBy":   "nikolaj"
+  }'</span></code></pre></div>
+    <p class="card">Hub'en videresender til Runner på <code>localhost:5081</code>. Kører Runner ikke, får du <code>HTTP 500</code> — start Runner først.</p>
+
+    <h3><span class="tag post">POST</span> &nbsp;Kald Runner direkte — accepteret job</h3>
+    <div class="code"><div class="bar"><span>POST /runner/jobs/nuget-update · ✓ allowlisted</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">curl</span> -X POST http://localhost:5081/runner/jobs/nuget-update <span class="c-pun">\</span>
+  -H <span class="c-str">"Content-Type: application/json"</span> <span class="c-pun">\</span>
+  -d <span class="c-str">'{"repositoryKey":"sample-service","packageId":"Serilog","targetVersion":"3.1.1"}'</span>
+
+<span class="c-cmt"># ▸ HTTP 200</span>
+<span class="c-cmt"># {"jobId":"d11f…","status":2,   ◂ Validated</span>
+<span class="c-cmt">#  "message":"Podman sandbox runner is a stub in the first milestone; no container was started."}</span></code></pre></div>
+
+    <h3><span class="tag post">POST</span> &nbsp;Kald Runner direkte — afvist af politik</h3>
+    <div class="code"><div class="bar"><span>POST /runner/jobs/nuget-update · ✗ ikke på allowlist</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">curl</span> -X POST http://localhost:5081/runner/jobs/nuget-update <span class="c-pun">\</span>
+  -H <span class="c-str">"Content-Type: application/json"</span> <span class="c-pun">\</span>
+  -d <span class="c-str">'{"repositoryKey":"sample-service","packageId":"EvilPackage","targetVersion":"1.0.0"}'</span>
+
+<span class="c-cmt"># ▸ HTTP 400</span>
+<span class="c-cmt"># {"jobId":"3ce0…","status":7,   ◂ Rejected</span>
+<span class="c-cmt">#  "message":"Package 'EvilPackage' is not on the allowlist."}</span></code></pre></div>
+    <div class="note">Dette er kernen i sikkerhedsmodellen i praksis: et job med en ikke-godkendt pakke <strong>afvises før eksekvering</strong> med en klar besked og <span class="s-rej">status 7 (Rejected)</span>.</div>
+  </section>
+
+  <!-- STATUS -->
+  <section id="status">
+    <h2><span class="num">06</span>Job-statuskoder</h2>
+    <p class="sub">Feltet <code>status</code> i svaret (<code>AgentJobStatus</code>).</p>
+    <table>
+      <thead><tr><th>Kode</th><th>Navn</th><th>Betydning</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill">0</span></td><td>Unknown</td><td>Ukendt / ikke sat.</td></tr>
+        <tr><td><span class="pill">1</span></td><td>Pending</td><td>Accepteret af Hub, endnu ikke valideret/afsendt.</td></tr>
+        <tr><td><span class="pill">2</span></td><td class="s-ok">Validated</td><td>Bestod Runner-validering; en worker forberedes.</td></tr>
+        <tr><td><span class="pill">3</span></td><td>Running</td><td>En sandbox-worker eksekverer jobbet.</td></tr>
+        <tr><td><span class="pill">4</span></td><td class="s-ok">Succeeded</td><td>Fuldført — fx en pull request blev åbnet.</td></tr>
+        <tr><td><span class="pill">5</span></td><td>NoChange</td><td>Fuldført uden ændring (fx allerede opdateret).</td></tr>
+        <tr><td><span class="pill">6</span></td><td class="s-warn">Failed</td><td>Worker kørte, men build/test fejlede.</td></tr>
+        <tr><td><span class="pill">7</span></td><td class="s-rej">Rejected</td><td>Afvist før eksekvering (politik-/allowlist-brud).</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ALLOWLIST -->
+  <section id="allowlist">
+    <h2><span class="num">07</span>Allowlist-config</h2>
+    <p class="sub">Alle godkendte repos, pakker og images bor i <code>src/DevAgent.Runner.Api/appsettings.json</code> under <code>Guard</code>. Kun administratorer redigerer den.</p>
+    <div class="code"><div class="bar"><span>appsettings.json (uddrag)</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-key">"Guard"</span>: {
+  <span class="c-key">"Repositories"</span>: [
+    { <span class="c-key">"Key"</span>: <span class="c-str">"sample-service"</span>,
+      <span class="c-key">"CloneUrl"</span>: <span class="c-str">"https://git.internal.example.com/platform/sample-service.git"</span>,
+      <span class="c-key">"BaseBranch"</span>: <span class="c-str">"main"</span> }
+  ],
+  <span class="c-key">"Packages"</span>: [ <span class="c-str">"Serilog"</span>, <span class="c-str">"Newtonsoft.Json"</span>, <span class="c-str">"Polly"</span> ],
+  <span class="c-key">"ContainerImages"</span>: [ <span class="c-str">"registry.internal.example.com/devagent/worker-dotnet:8.0"</span> ],
+  <span class="c-key">"JobTypeImages"</span>: {
+    <span class="c-key">"NuGetUpdate"</span>: <span class="c-str">"registry.internal.example.com/devagent/worker-dotnet:8.0"</span>
+  }
+}</code></pre></div>
+    <p>Vil du tillade en ny pakke eller et nyt repo, så tilføj <em>nøglen</em> her — callere refererer altid kun til nøglen, aldrig URL'en eller image-navnet.</p>
+  </section>
+
+  <!-- SIKKERHED -->
+  <section id="sikkerhed">
+    <h2><span class="num">08</span>Sikkerhedsmodel</h2>
+    <p class="sub">Håndhævet, ikke aspirativt.</p>
+    <div class="grid two">
+      <div class="card"><h4>🔒 Ingen rå adgang</h4><p>LLM'en får aldrig host-shell, Podman/Docker-socket, SSH, secrets eller deploy-/cloud-credentials.</p></div>
+      <div class="card"><h4>🔑 Kun nøgler</h4><p>Callere sender allowlist-nøgler — aldrig rå URL'er, images eller container-argumenter.</p></div>
+      <div class="card"><h4>🚪 Re-validering</h4><p>Runner re-validerer <em>hvert</em> job mod repo/pakke/image/jobtype-allowlists.</p></div>
+      <div class="card"><h4>⛔ Ingen shell</h4><p><code>SafeCommandRunner</code> kører kun <code>dotnet</code> og <code>git</code> som argument-vektor — <code>;</code> <code>&amp;&amp;</code> <code>|</code> <code>$()</code> er inerte.</p></div>
+      <div class="card"><h4>🧭 Sti-vagt</h4><p><code>WorkspacePathValidator</code> blokerer path-traversal og absolutte sti-escapes; <code>ProtectedFilePolicy</code> blokerer ændringer i secrets/deploy-filer.</p></div>
+      <div class="card"><h4>🔁 Altid en PR</h4><p>Resultatet er altid en pull request — der findes ingen auto-merge-kodevej nogen steder. Alt auditeres.</p></div>
+    </div>
+    <div class="note"><strong>Den fremtidige LLM-agent (DevAgent.Forge)</strong> kan kun handle gennem syv strukturerede værktøjer — <code>list_files</code>, <code>read_file</code>, <code>apply_patch</code>, <code>replace_file</code>, <code>run_dotnet_build</code>, <code>run_dotnet_test</code>, <code>git_status</code> — sti-valideret, allowlist-checket og auditeret. Ingen shell, curl, ssh eller docker.</div>
+  </section>
+
+  <!-- LLM -->
+  <section id="llm">
+    <h2><span class="num">09</span>LLM-providere &amp; model pr. agent</h2>
+    <p class="sub">Forge-agenten kan drives af Claude, ChatGPT eller Gemini — og hver agent vælger sin egen model.</p>
+    <div class="grid three">
+      <div class="card"><h4><span class="pill">Claude</span> · standard</h4><p>Anthropic Messages API. Standardmodel <code>claude-opus-4-8</code>. Nøgle: <code>ANTHROPIC_API_KEY</code>.</p></div>
+      <div class="card"><h4><span class="pill">ChatGPT</span></h4><p>OpenAI Chat Completions. Standardmodel <code>gpt-4o</code>. Nøgle: <code>OPENAI_API_KEY</code>.</p></div>
+      <div class="card"><h4><span class="pill">Gemini</span></h4><p>Google generateContent. Standardmodel <code>gemini-2.0-flash</code>. Nøgle: <code>GEMINI_API_KEY</code>.</p></div>
+    </div>
+    <p>Alle tre implementerer det samme <code>ILlmClient</code> og oversætter agentens syv strukturerede værktøjer til provider-værktøjskald. Modellen kan <strong>aldrig</strong> kalde en shell — kun de allowlist-checkede værktøjer.</p>
+
+    <h3>Vælg provider og model for en agent</h3>
+    <p>En agent angiver sin provider og model i konfigurationen (her DependencyPilot's <code>Llm</code>-sektion):</p>
+    <div class="code"><div class="bar"><span>appsettings.json</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-key">"DependencyPilot"</span>: {
+  <span class="c-key">"Llm"</span>: {
+    <span class="c-key">"Provider"</span>: <span class="c-str">"Claude"</span>,        <span class="c-cmt">// Claude | OpenAi | Gemini</span>
+    <span class="c-key">"Model"</span>: <span class="c-str">"claude-opus-4-8"</span>  <span class="c-cmt">// udelad for provider-standard</span>
+  }
+}</code></pre></div>
+    <div class="code"><div class="bar"><span>C# — byg klienten</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">var</span> options = <span class="c-fn">new</span> LlmClientOptions { Provider = LlmProvider.Gemini, Model = <span class="c-str">"gemini-2.0-flash"</span> };
+<span class="c-fn">var</span> llm = LlmClientFactory.Create(options, httpClient);
+<span class="c-fn">var</span> agent = CodingAgentFactory.Create(workspace, llm, audit, jobId);</code></pre></div>
+    <div class="note">Nøglen læses fra miljøet (eller <code>LlmClientOptions.ApiKey</code>). Mangler den, fejler kaldet højlydt med en klar besked — aldrig stille degradering.</div>
+
+    <h3>Build-repair i sandbox-worker'en</h3>
+    <p>Forge-agenten er nu <strong>wiret ind i worker'en</strong> (<code>RepoWorkflow</code>) som et opt-in build-repair-trin: hvis bygningen fejler efter en ændring, og <code>DEVAGENT_LLM_PROVIDER</code> er sat, får agenten <em>ét</em> afgrænset forsøg på at rette fejlen via sine værktøjer. Derefter verificerer worker'en deterministisk igen og åbner en review-krævende PR — agenten merger aldrig.</p>
+
+    <h3>Ny agent: .NET-opgradering</h3>
+    <p><strong><code>Agents.DotNetUpgrader</code></strong> foreslår at opgradere target frameworket (fx <code>net6.0</code> → <code>net8.0</code>) på <em>alle</em> projekter i et repo. Worker'en udfører det deterministisk via <code>TargetFrameworkUpdater</code> (rører kun moderne <code>net&lt;x&gt;.&lt;y&gt;</code>, downgrader aldrig, lader <code>netstandard</code>/<code>net4x</code> være) — og framework-bumps der bryder bygningen er netop hvor build-repair-trinet ovenfor hjælper. Worker'en vælger job via <code>DEVAGENT_JOB_TYPE</code> (<code>NuGetUpdate</code> | <code>DotNetUpgrade</code>).</p>
+  </section>
+
+  <!-- BEGRÆNSNINGER -->
+  <section id="begraensninger">
+    <h2><span class="num">10</span>Nuværende begrænsninger</h2>
+    <p class="sub">Det er en første milepæl — vid hvad der er ægte og hvad der er stub.</p>
+    <div class="note warn"><strong>Stub-eksekvering:</strong> <code>PodmanSandboxJobRunner</code> samt git-/NuGet-providerne er placeholders. Et accepteret job når valideringsgaten og returnerer <span class="s-ok">Validated</span>, men der startes <em>ingen</em> container, og der oprettes <em>ingen</em> rigtig pull request endnu.</div>
+    <div class="note warn"><strong>LLM kræver en API-nøgle:</strong> Klienterne til Claude/ChatGPT/Gemini er på plads (<code>DevAgent.Bridge.Llm</code>), men kører kun når den relevante nøgle er sat i miljøet (<code>ANTHROPIC_API_KEY</code> / <code>OPENAI_API_KEY</code> / <code>GEMINI_API_KEY</code>). Build-repair-trinet i sandbox-worker'en er stadig opt-in.</div>
+    <div class="note warn"><strong>Kun lokal sikring:</strong> Hangfire-dashboardet på <code>/hangfire</code> er åbent lokalt — sikr det ordentligt før eksponering uden for din maskine.</div>
+    <p style="margin-top:18px">Du kan altså i praksis afprøve hele <strong>API-flowet og politik-valideringen</strong> nu — det er netop dét, skelettet er bygget til at demonstrere sikkert.</p>
+  </section>
+
+  </div>
+</main>
+</div>
+
+<footer>
+  <div class="wrap">
+    DevAgent · .NET 8 · Hub (5080) + Runner (5081) · Hangfire-dashboard på <code>/hangfire</code><br/>
+    Mere baggrund i projektets <code>README.md</code>. Resultatet er altid en review-krævende pull request — aldrig en auto-merge.
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('.copy').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var code = btn.closest('.code').querySelector('pre').innerText;
+      navigator.clipboard.writeText(code).then(function () {
+        var old = btn.textContent;
+        btn.textContent = '✓ Kopieret';
+        btn.classList.add('done');
+        setTimeout(function () { btn.textContent = old; btn.classList.remove('done'); }, 1600);
+      });
+    });
+  });
+
+  // Highlight aktivt punkt i indholdsfortegnelsen ved scroll.
+  var links = Array.from(document.querySelectorAll('nav.toc a'));
+  var map = {};
+  links.forEach(function (l) { map[l.getAttribute('href').slice(1)] = l; });
+  var obs = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting) {
+        links.forEach(function (l) { l.style.borderLeftColor = 'transparent'; l.style.color = ''; });
+        var a = map[e.target.id];
+        if (a) { a.style.borderLeftColor = 'var(--brand)'; a.style.color = 'var(--text)'; }
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+  document.querySelectorAll('section[id]').forEach(function (s) { obs.observe(s); });
+</script>
+</body>
+</html>
