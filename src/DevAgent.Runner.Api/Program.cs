@@ -21,7 +21,7 @@ builder.Services.AddSingleton(sp =>
 
 builder.Services.AddSingleton<IAuditLog, ConsoleAuditLog>();
 builder.Services.AddSingleton<ContainerImagePolicy>(sp => sp.GetRequiredService<GuardPolicySet>().ContainerImages);
-builder.Services.AddSingleton<ISandboxJobRunner, DockerSandboxJobRunner>();
+builder.Services.AddSingleton<ISandboxJobRunner, PodmanSandboxJobRunner>();
 builder.Services.AddScoped<RunnerJobApplicationService>();
 
 var app = builder.Build();
