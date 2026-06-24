@@ -55,4 +55,38 @@ public sealed class HubJobApplicationService
 
         return result;
     }
+
+    public async Task<AgentJobResult> StartDotNetUpgradeAsync(
+        string repositoryKey,
+        string targetFramework,
+        string requestedBy,
+        CancellationToken cancellationToken = default)
+    {
+        var request = new DotNetUpgradeJobRequest
+        {
+            RepositoryKey = repositoryKey,
+            TargetFramework = targetFramework,
+            RequestedBy = requestedBy,
+        };
+
+        await _audit.WriteAsync(new JobAuditEvent
+        {
+            JobId = request.JobId,
+            Actor = requestedBy,
+            Status = nameof(AgentJobStatus.Pending),
+            Message = $"Hub accepted .NET upgrade to {targetFramework} for '{repositoryKey}'.",
+        }, cancellationToken);
+
+        var result = await _runner.StartDotNetUpgradeAsync(request, cancellationToken);
+
+        await _audit.WriteAsync(new JobAuditEvent
+        {
+            JobId = result.JobId,
+            Actor = requestedBy,
+            Status = result.Status.ToString(),
+            Message = result.Message,
+        }, cancellationToken);
+
+        return result;
+    }
 }

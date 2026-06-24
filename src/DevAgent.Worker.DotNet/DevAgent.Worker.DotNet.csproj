@@ -15,7 +15,10 @@
   <ItemGroup>
     <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
     <ProjectReference Include="..\DevAgent.Guard\DevAgent.Guard.csproj" />
+    <ProjectReference Include="..\DevAgent.Audit\DevAgent.Audit.csproj" />
     <ProjectReference Include="..\DevAgent.Bridge.Git\DevAgent.Bridge.Git.csproj" />
+    <ProjectReference Include="..\DevAgent.Forge\DevAgent.Forge.csproj" />
+    <ProjectReference Include="..\DevAgent.Bridge.Llm\DevAgent.Bridge.Llm.csproj" />
   </ItemGroup>
 
 </Project>

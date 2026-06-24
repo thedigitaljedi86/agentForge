@@ -41,4 +41,28 @@ public sealed class HttpRunnerClient : IRunnerClient
             Message = $"Runner returned an unreadable response ({(int)response.StatusCode}).",
         };
     }
+
+    public async Task<AgentJobResult> StartDotNetUpgradeAsync(
+        DotNetUpgradeJobRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var body = new
+        {
+            jobId = request.JobId,
+            repositoryKey = request.RepositoryKey,
+            targetFramework = request.TargetFramework,
+            onlyUpgrade = request.OnlyUpgrade,
+            requestedBy = request.RequestedBy,
+        };
+
+        using var response = await _http.PostAsJsonAsync("/runner/jobs/dotnet-upgrade", body, cancellationToken);
+
+        var result = await response.Content.ReadFromJsonAsync<AgentJobResult>(cancellationToken: cancellationToken);
+        return result ?? new AgentJobResult
+        {
+            JobId = request.JobId,
+            Status = AgentJobStatus.Failed,
+            Message = $"Runner returned an unreadable response ({(int)response.StatusCode}).",
+        };
+    }
 }

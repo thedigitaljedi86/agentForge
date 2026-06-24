@@ -34,6 +34,9 @@ public sealed record SandboxJobRequest
     /// <summary>Target package version (for NuGetUpdate jobs).</summary>
     public string? TargetVersion { get; init; }
 
+    /// <summary>Target framework to upgrade all projects to (for DotNetUpgrade jobs).</summary>
+    public string? TargetFramework { get; init; }
+
     /// <summary>Whether the update should refuse to downgrade.</summary>
     public bool OnlyUpgrade { get; init; } = true;
 }

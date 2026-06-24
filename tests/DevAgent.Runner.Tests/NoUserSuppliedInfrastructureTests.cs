@@ -50,4 +50,23 @@ public class NoUserSuppliedInfrastructureTests
         Assert.NotNull(typeof(StartNuGetUpdateRunnerRequest).GetProperty("PackageId"));
         Assert.NotNull(typeof(StartNuGetUpdateRunnerRequest).GetProperty("TargetVersion"));
     }
+
+    [Theory]
+    [InlineData("CloneUrl")]
+    [InlineData("ContainerImage")]
+    [InlineData("Image")]
+    [InlineData("DockerArgs")]
+    [InlineData("Command")]
+    public void DotNetUpgrade_request_also_forbids_infrastructure(string forbidden)
+    {
+        Assert.Null(typeof(DotNetUpgradeJobRequest).GetProperty(forbidden));
+        Assert.Null(typeof(StartDotNetUpgradeRunnerRequest).GetProperty(forbidden));
+    }
+
+    [Fact]
+    public void DotNetUpgrade_request_exposes_only_a_key_and_framework()
+    {
+        Assert.NotNull(typeof(StartDotNetUpgradeRunnerRequest).GetProperty("RepositoryKey"));
+        Assert.NotNull(typeof(StartDotNetUpgradeRunnerRequest).GetProperty("TargetFramework"));
+    }
 }

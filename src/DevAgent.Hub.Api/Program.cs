@@ -59,6 +59,21 @@ app.MapPost("/hub/dependencypilot/nuget-update", async (
     return Results.Ok(result);
 });
 
+// --- Manual trigger: start a DotNetUpgrader framework-upgrade job ---
+app.MapPost("/hub/dotnetupgrader/upgrade", async (
+    StartDotNetUpgradeHubRequest body,
+    HubJobApplicationService service,
+    CancellationToken cancellationToken) =>
+{
+    var result = await service.StartDotNetUpgradeAsync(
+        body.RepositoryKey,
+        body.TargetFramework,
+        body.RequestedBy ?? "manual",
+        cancellationToken);
+
+    return Results.Ok(result);
+});
+
 app.Run();
 
 /// <summary>Manual-trigger body. Repository + package are allowlist keys.</summary>
@@ -67,6 +82,14 @@ public sealed record StartNuGetUpdateHubRequest
     public required string RepositoryKey { get; init; }
     public required string PackageId { get; init; }
     public required string TargetVersion { get; init; }
+    public string? RequestedBy { get; init; }
+}
+
+/// <summary>Manual-trigger body for a .NET upgrade. Repository is an allowlist key.</summary>
+public sealed record StartDotNetUpgradeHubRequest
+{
+    public required string RepositoryKey { get; init; }
+    public required string TargetFramework { get; init; }
     public string? RequestedBy { get; init; }
 }
 
