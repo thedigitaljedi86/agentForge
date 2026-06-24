@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Contracts is the shared kernel of the platform.
+    It contains ONLY DTOs, enums and validation contracts.
+    It must not depend on any other project so that every component
+    (Hub, Runner, Worker, agents) can reference it without coupling.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Contracts</RootNamespace>
+  </PropertyGroup>
+
+</Project>

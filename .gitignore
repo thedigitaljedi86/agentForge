@@ -1,0 +1,29 @@
+## .NET / Visual Studio
+bin/
+obj/
+out/
+*.user
+*.suo
+.vs/
+.vscode/
+*.DotSettings.user
+
+## Build / test artifacts
+[Dd]ebug/
+[Rr]elease/
+TestResults/
+*.trx
+coverage*.xml
+*.coverage
+
+## Rider / JetBrains
+.idea/
+
+## OS noise
+.DS_Store
+Thumbs.db
+
+## Local secrets — must never be committed
+appsettings.*.Local.json
+*.local.env
+secrets.json

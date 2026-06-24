@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    DevAgent.Hub.Api is the platform's front door: webhooks, scheduled jobs
+    (Hangfire) and manual triggers. It tracks high-level job state and forwards
+    VALIDATED requests to DevAgent.Runner. It performs no container work itself.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Hub.Api</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.14" />
+    <PackageReference Include="Hangfire.MemoryStorage" Version="1.8.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+    <ProjectReference Include="..\DevAgent.Audit\DevAgent.Audit.csproj" />
+  </ItemGroup>
+
+</Project>

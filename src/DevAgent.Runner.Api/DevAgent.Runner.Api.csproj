@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    DevAgent.Runner.Api is the FINAL validation gate before a sandbox worker
+    is started. It re-validates every job against the Guard allowlists
+    (repository, package, image, job type) and resolves caller-supplied KEYS
+    into trusted values. It never exposes a generic command-execution endpoint.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Runner.Api</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+    <ProjectReference Include="..\DevAgent.Guard\DevAgent.Guard.csproj" />
+    <ProjectReference Include="..\DevAgent.Audit\DevAgent.Audit.csproj" />
+  </ItemGroup>
+
+</Project>

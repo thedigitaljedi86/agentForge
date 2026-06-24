@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Worker.DotNet is the console app that runs INSIDE a sandbox
+    container. It reads its job from environment variables and confines all
+    work to its own /workspace. It must never assume Docker access and must
+    never touch host filesystem paths.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>DevAgent.Worker.DotNet</RootNamespace>
+    <AssemblyName>DevAgent.Worker.DotNet</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+    <ProjectReference Include="..\DevAgent.Guard\DevAgent.Guard.csproj" />
+    <ProjectReference Include="..\DevAgent.Bridge.Git\DevAgent.Bridge.Git.csproj" />
+  </ItemGroup>
+
+</Project>

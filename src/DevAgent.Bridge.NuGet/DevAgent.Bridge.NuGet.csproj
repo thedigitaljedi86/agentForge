@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Bridge.NuGet abstracts NuGet package discovery and repository
+    usage scanning. First milestone: mostly interfaces + DTOs + placeholders.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Bridge.NuGet</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

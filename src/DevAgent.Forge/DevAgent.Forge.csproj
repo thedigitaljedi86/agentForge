@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Forge is the FUTURE LLM coding-agent layer. First milestone:
+    interfaces + DTOs ONLY. No LLM is integrated yet.
+
+    SECURITY: By design there is no shell tool and no generic "run command"
+    tool here. Every future capability is a structured, named tool that must
+    be policy-checked by DevAgent.Guard before execution.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Forge</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+    <ProjectReference Include="..\DevAgent.Guard\DevAgent.Guard.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Audit provides the append-only audit trail for the platform.
+    Every security decision, prompt, tool call and generated diff should be
+    recorded here. First milestone: interfaces + models + a console sink.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Audit</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>
