@@ -15,6 +15,9 @@ public sealed class GuardPolicyOptions
     public List<string> Packages { get; set; } = new();
     public List<string> ContainerImages { get; set; } = new();
 
+    /// <summary>Allowed target frameworks for DotNetUpgrade jobs (empty = format-only).</summary>
+    public List<string> AllowedTargetFrameworks { get; set; } = new();
+
     /// <summary>Map of job type -> container image used for that job type.</summary>
     public Dictionary<string, string> JobTypeImages { get; set; } = new();
 
@@ -45,6 +48,7 @@ public sealed class GuardPolicyOptions
             Packages = new PackagePolicy(Packages),
             ContainerImages = new ContainerImagePolicy(ContainerImages),
             JobTypes = new JobPolicy(jobTypeImages),
+            TargetFrameworks = new TargetFrameworkPolicy(AllowedTargetFrameworks),
         };
     }
 }

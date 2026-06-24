@@ -54,6 +54,30 @@ app.MapPost("/runner/jobs/nuget-update", async (
         : Results.Ok(result);
 });
 
+// SECURITY: The .NET-upgrade job-start endpoint. It accepts a typed
+// DotNetUpgradeJobRequest (key + framework, never a URL/image) and runs it
+// through the full allowlist gate (job type, repository, target framework).
+app.MapPost("/runner/jobs/dotnet-upgrade", async (
+    StartDotNetUpgradeRunnerRequest body,
+    RunnerJobApplicationService service,
+    CancellationToken cancellationToken) =>
+{
+    var request = new DotNetUpgradeJobRequest
+    {
+        JobId = body.JobId ?? Guid.NewGuid().ToString("N"),
+        RepositoryKey = body.RepositoryKey,
+        TargetFramework = body.TargetFramework,
+        OnlyUpgrade = body.OnlyUpgrade,
+        RequestedBy = body.RequestedBy ?? "hub",
+    };
+
+    var result = await service.StartDotNetUpgradeAsync(request, cancellationToken);
+
+    return result.Status == AgentJobStatus.Rejected
+        ? Results.BadRequest(result)
+        : Results.Ok(result);
+});
+
 app.Run();
 
 /// <summary>
@@ -66,6 +90,19 @@ public sealed record StartNuGetUpdateRunnerRequest
     public required string RepositoryKey { get; init; }
     public required string PackageId { get; init; }
     public required string TargetVersion { get; init; }
+    public bool OnlyUpgrade { get; init; } = true;
+    public string? RequestedBy { get; init; }
+}
+
+/// <summary>
+/// API body for starting a .NET-upgrade job. Like the NuGet body it carries only
+/// an allowlist key and the desired framework — no URL, image or command.
+/// </summary>
+public sealed record StartDotNetUpgradeRunnerRequest
+{
+    public string? JobId { get; init; }
+    public required string RepositoryKey { get; init; }
+    public required string TargetFramework { get; init; }
     public bool OnlyUpgrade { get; init; } = true;
     public string? RequestedBy { get; init; }
 }
