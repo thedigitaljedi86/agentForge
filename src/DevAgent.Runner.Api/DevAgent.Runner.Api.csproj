@@ -11,6 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
     <ProjectReference Include="..\DevAgent.Guard\DevAgent.Guard.csproj" />
     <ProjectReference Include="..\DevAgent.Audit\DevAgent.Audit.csproj" />

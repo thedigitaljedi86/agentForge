@@ -99,6 +99,20 @@ public class TargetFrameworkUpdaterTests : IDisposable
         Assert.Equal(0, outcome.ProjectsUpdated);
     }
 
+    [Fact]
+    public void Does_not_add_an_xml_declaration_or_bom_to_a_clean_project()
+    {
+        var path = WriteProject("a/A.csproj", SingleTarget("net6.0"));
+
+        new TargetFrameworkUpdater().UpdateInDirectory(_root, "net8.0");
+
+        var bytes = File.ReadAllBytes(path);
+        // No UTF-8 BOM (EF BB BF) at the start.
+        Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF);
+        // No injected <?xml ...?> declaration.
+        Assert.StartsWith("<Project", File.ReadAllText(path));
+    }
+
     [Theory]
     [InlineData("net6.0", "net8.0", -1)]
     [InlineData("net8.0", "net8.0", 0)]

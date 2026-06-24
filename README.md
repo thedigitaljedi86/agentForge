@@ -40,6 +40,25 @@ tests/
   Agents.DotNetUpgrader.Tests/      upgrade planning + watch-list enforcement
 ```
 
+## What each project is for
+
+| Project | Purpose |
+|---|---|
+| **DevAgent.Contracts** | Shared, dependency-free DTOs/enums/validation contracts: job requests (keys only — no URLs/images), `AgentJobType`, `AgentJobResult`, `SandboxJobRequest`. The platform's vocabulary. |
+| **DevAgent.Audit** | Append-only audit sink (`IAuditLog`): records decisions, jobs, prompts, tool calls and diffs as immutable evidence of what the platform did. |
+| **DevAgent.Guard** | The **security core**. Allowlist policies (repository, package, container image, job type, **target framework**), `SafeCommandRunner` (argument-vector exec of `dotnet`/`git` only — no shell), `WorkspacePathValidator`, `ProtectedFilePolicy`. |
+| **DevAgent.Bridge.Git** | `IGitProvider` abstraction for clone / push / open-PR, with a placeholder impl that refuses auto-merge. A real GitHub/GitLab/ADO provider drops in later. |
+| **DevAgent.Bridge.NuGet** | Abstractions for finding new package versions and scanning which repos use them (feeds DependencyPilot). |
+| **DevAgent.Forge** | The **controlled LLM coding agent**: the agent loop plus the seven structured tool contracts (`read_file`, `apply_patch`, `run_dotnet_build`, …). No shell, no generic command tool. |
+| **DevAgent.Bridge.Llm** | Concrete `ILlmClient` implementations for **Claude (default), ChatGPT and Gemini**, plus the factory. Maps the structured tools to each provider's tool-calling API; model is selectable per agent. |
+| **DevAgent.Worker.DotNet** | The sandbox console app. `RepoWorkflow` does clone → deterministic edit → build/test → **opt-in LLM build-repair** → push → review-required PR. Hosts `PackageReferenceUpdater` and `TargetFrameworkUpdater`. Dispatches on `DEVAGENT_JOB_TYPE`. |
+| **DevAgent.Runner.Api** | The **final validation gate**. Re-validates every job against all allowlists, resolves keys → trusted values, and dispatches to the (rootless Podman) sandbox runner. The only place jobs are authorised. Swagger at `/swagger`. |
+| **DevAgent.Hub.Api** | The **front door**: manual triggers, the Hangfire schedule, the **agent-status dashboard** (`/`) + `GET /jobs`, and Swagger. Forwards validated jobs to the Runner; never does container work itself. |
+| **Agents.DependencyPilot** | Concrete agent: proposes NuGet `PackageReference` updates for watched repos. |
+| **Agents.DotNetUpgrader** | Concrete agent: proposes upgrading **all projects' target framework** (e.g. → `net10.0`) for watched repos. Wired as the example **scheduled** agent. |
+
+Every `Agents.*` project only *proposes* work by key; the Runner re-validates and a sandbox worker performs it. The result is always a reviewable pull request.
+
 ## Request flow (DependencyPilot NuGet update)
 
 ```
@@ -86,15 +105,49 @@ manual trigger / Hangfire        allowlist gate:                         clone �
 * **Must stay deterministic & policy-controlled:** the Runner validation gate, all `Guard`
   policies, `SafeCommandRunner`, and the worker's NuGet-update and framework-upgrade edits.
 
-## Building
+## Running it
 
-> ⚠️ This skeleton was authored in an environment without the .NET SDK or nuget.org
-> access, so it has **not been compiled here**. On a machine with the .NET 8 SDK:
+All projects target **.NET 10**.
+
+### Option A — Docker (whole platform at once)
 
 ```bash
-dotnet restore
-dotnet build
-dotnet test
+docker compose up --build
 ```
 
-Package versions referenced: Hangfire 1.8.x, xUnit 2.9.x, Microsoft.Extensions.Options 8.0.x.
+Then open:
+
+| URL | What |
+|---|---|
+| <http://localhost:5080/> | **Agent-status dashboard** — which agents received tasks + their status (auto-refreshing) |
+| <http://localhost:5080/swagger> | Hub API — manual triggers (`/hub/dependencypilot/nuget-update`, `/hub/dotnetupgrader/upgrade`) |
+| <http://localhost:5080/hangfire> | Schedule — recurring agents (e.g. the nightly `dotnetupgrader-nightly-sweep`) |
+| <http://localhost:5081/swagger> | Runner API — the validation gate |
+
+The Hub forwards validated jobs to the Runner over the compose network.
+
+### Option B — local (.NET 10 SDK)
+
+```bash
+dotnet build DevAgent.sln
+dotnet test  DevAgent.sln          # all tests should pass
+
+# Run the two services (Runner first — the Hub forwards to it):
+dotnet run --project src/DevAgent.Runner.Api --launch-profile Runner   # :5081
+dotnet run --project src/DevAgent.Hub.Api    --launch-profile Hub      # :5080
+```
+
+### Scheduled agents
+
+The Hub registers two recurring Hangfire jobs as examples of unattended,
+time-based agent work: `dependencypilot-package-check` (hourly heartbeat) and
+`dotnetupgrader-nightly-sweep` (nightly — proposes upgrading every watched repo
+to the configured framework). The nightly sweep also runs **once at startup** so
+the dashboard shows agent activity immediately.
+
+### Build-repair with a real LLM
+
+Set a provider + key on the worker to enable the opt-in Forge build-repair step:
+`DEVAGENT_LLM_PROVIDER=Claude` (or `OpenAi` / `Gemini`) plus the matching
+`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY`. Without it, a failing
+build after an edit fails safely with no PR.

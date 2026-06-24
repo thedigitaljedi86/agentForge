@@ -14,8 +14,8 @@ public sealed class DotNetUpgraderOptions
     /// <summary>Allowlist keys of repositories DotNetUpgrader may upgrade.</summary>
     public List<string> RepositoryKeys { get; set; } = new();
 
-    /// <summary>The target framework every project should be moved to (e.g. "net8.0").</summary>
-    public string TargetFramework { get; set; } = "net8.0";
+    /// <summary>The target framework every project should be moved to (e.g. "net10.0").</summary>
+    public string TargetFramework { get; set; } = "net10.0";
 
     /// <summary>Only rewrite frameworks older than the target (never downgrade).</summary>
     public bool OnlyUpgrade { get; set; } = true;

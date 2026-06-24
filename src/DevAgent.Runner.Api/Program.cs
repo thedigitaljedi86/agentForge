@@ -24,7 +24,20 @@ builder.Services.AddSingleton<ContainerImagePolicy>(sp => sp.GetRequiredService<
 builder.Services.AddSingleton<ISandboxJobRunner, PodmanSandboxJobRunner>();
 builder.Services.AddScoped<RunnerJobApplicationService>();
 
+// Swagger / OpenAPI for interactive local testing of the job endpoints.
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(c =>
+    c.SwaggerDoc("v1", new() { Title = "DevAgent.Runner", Version = "v1" }));
+
 var app = builder.Build();
+
+// SECURITY: only expose Swagger in Development. The launch profile sets the
+// Development environment, so `dotnet run` shows it at /swagger.
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
 
 // Health check.
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "DevAgent.Runner" }));

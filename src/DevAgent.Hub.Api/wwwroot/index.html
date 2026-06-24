@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DevAgent — Agent-status</title>
+<style>
+  :root {
+    --bg:#0b1020; --card:#161f3d; --card2:#1b2747; --line:#28335a; --text:#e7ecf7;
+    --muted:#9aa6c7; --brand:#6ea8fe; --brand2:#a78bfa;
+    --green:#4ade80; --amber:#fbbf24; --red:#f87171; --blue:#60a5fa; --grey:#94a3b8;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box} body{margin:0;font-family:var(--sans);color:var(--text);
+    background:radial-gradient(1200px 600px at 80% -10%,rgba(110,168,254,.16),transparent 60%),var(--bg);line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+  header{padding:34px 0 18px;border-bottom:1px solid var(--line)}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em;
+    background:linear-gradient(120deg,#fff,var(--brand) 60%,var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);margin:0;font-size:15px}
+  .bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:14px;color:var(--muted)}
+  .bar a{color:var(--brand);text-decoration:none} .bar a:hover{text-decoration:underline}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);display:inline-block;margin-right:6px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:22px 0}
+  .stat{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .n{font-size:26px;font-weight:700} .stat .l{color:var(--muted);font-size:12.5px;text-transform:uppercase;letter-spacing:.05em}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:26px 0 10px}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  td.mono{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .agent{font-weight:600}
+  .badge{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;white-space:nowrap}
+  .b-pending{background:rgba(148,163,184,.16);color:var(--grey)}
+  .b-validated{background:rgba(96,165,250,.16);color:var(--blue)}
+  .b-running{background:rgba(96,165,250,.16);color:var(--blue)}
+  .b-succeeded{background:rgba(74,222,128,.16);color:var(--green)}
+  .b-nochange{background:rgba(148,163,184,.16);color:var(--grey)}
+  .b-failed{background:rgba(251,191,36,.16);color:var(--amber)}
+  .b-rejected{background:rgba(248,113,113,.16);color:var(--red)}
+  .b-unknown{background:rgba(148,163,184,.16);color:var(--grey)}
+  .empty{color:var(--muted);padding:40px 0;text-align:center}
+  .time{color:var(--muted);font-size:12px}
+  footer{color:var(--muted);font-size:13px;padding:24px 0 50px;border-top:1px solid var(--line);margin-top:30px}
+  code{font-family:var(--mono);background:#0c1226;border:1px solid var(--line);padding:1px 6px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>DevAgent — Agent-status</h1>
+    <p class="sub">Hvilke agenter har modtaget opgaver, og hvor de står. Opdateres automatisk hvert 2. sekund.</p>
+    <div class="bar">
+      <span><span class="dot" id="live"></span><span id="livetext">live</span></span>
+      <span>·</span>
+      <a href="/swagger">Swagger (triggers)</a>
+      <a href="/hangfire">Hangfire (schedule)</a>
+      <a href="/health">Health</a>
+      <span id="updated" style="margin-left:auto"></span>
+    </div>
+  </header>
+
+  <div class="grid" id="stats"></div>
+
+  <h2>Opgaver</h2>
+  <table>
+    <thead>
+      <tr><th>Agent</th><th>Jobtype</th><th>Mål</th><th>Status</th><th>Besked</th><th>Opdateret</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">Ingen opgaver endnu. Trigger en via <a href="/swagger">Swagger</a>, eller vent på den planlagte agent.</div>
+
+  <footer>
+    DevAgent.Hub · .NET 10 · dette dashboard viser <code>GET /jobs</code> (in-memory job-tracker).
+    Den planlagte <strong>DotNetUpgrader</strong>-agent kører ved opstart og hver nat.
+  </footer>
+</div>
+
+<script>
+  const STATUS = {
+    0:["Unknown","b-unknown"], 1:["Pending","b-pending"], 2:["Validated","b-validated"],
+    3:["Running","b-running"], 4:["Succeeded","b-succeeded"], 5:["NoChange","b-nochange"],
+    6:["Failed","b-failed"], 7:["Rejected","b-rejected"],
+  };
+
+  function esc(s){ return (s??"").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function ago(iso){
+    const s = Math.max(0, (Date.now() - new Date(iso).getTime())/1000);
+    if (s < 60) return Math.floor(s)+"s siden";
+    if (s < 3600) return Math.floor(s/60)+"m siden";
+    return Math.floor(s/3600)+"t siden";
+  }
+
+  async function refresh(){
+    let jobs;
+    try {
+      const r = await fetch("/jobs", {cache:"no-store"});
+      jobs = await r.json();
+      document.getElementById("live").style.background = "var(--green)";
+      document.getElementById("livetext").textContent = "live";
+    } catch {
+      document.getElementById("live").style.background = "var(--red)";
+      document.getElementById("livetext").textContent = "afbrudt";
+      return;
+    }
+
+    // Stats
+    const byStatus = {};
+    const agents = new Set();
+    for (const j of jobs){ byStatus[j.status]=(byStatus[j.status]||0)+1; agents.add(j.agent); }
+    const stats = [
+      ["Opgaver", jobs.length],
+      ["Agenter", agents.size],
+      ["Validated", byStatus[2]||0],
+      ["Succeeded", byStatus[4]||0],
+      ["Failed/Rejected", (byStatus[6]||0)+(byStatus[7]||0)],
+    ];
+    document.getElementById("stats").innerHTML = stats.map(([l,n]) =>
+      `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+
+    // Rows
+    const rows = document.getElementById("rows");
+    const empty = document.getElementById("empty");
+    if (!jobs.length){ rows.innerHTML=""; empty.style.display="block"; }
+    else {
+      empty.style.display="none";
+      rows.innerHTML = jobs.map(j => {
+        const [name,cls] = STATUS[j.status] || STATUS[0];
+        return `<tr>
+          <td class="agent">${esc(j.agent)}</td>
+          <td>${esc(j.jobType)}</td>
+          <td class="mono">${esc(j.target)}</td>
+          <td><span class="badge ${cls}">${name}</span></td>
+          <td>${esc(j.message)}</td>
+          <td class="time" title="${esc(j.updatedAtUtc)}">${ago(j.updatedAtUtc)}</td>
+        </tr>`;
+      }).join("");
+    }
+    document.getElementById("updated").textContent = "opdateret " + new Date().toLocaleTimeString();
+  }
+
+  refresh();
+  setInterval(refresh, 2000);
+</script>
+</body>
+</html>

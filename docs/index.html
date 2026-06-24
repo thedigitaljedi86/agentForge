@@ -179,6 +179,8 @@
     <a href="#allowlist">Allowlist-config</a>
     <a href="#sikkerhed">Sikkerhedsmodel</a>
     <a href="#llm">LLM-providere</a>
+    <a href="#llm-i-spil">LLM i spil</a>
+    <a href="#egen-agent">Byg din egen agent</a>
     <a href="#begraensninger">Begrænsninger</a>
   </nav>
 
@@ -232,13 +234,14 @@
   <!-- KOM I GANG -->
   <section id="kom-igang">
     <h2><span class="num">03</span>Kom i gang</h2>
-    <p class="sub">Forudsætning: .NET 8 SDK. Faste porte er sat op via <code>launchSettings.json</code>.</p>
+    <p class="sub">Forudsætning: .NET 10 SDK (eller bare Docker). Faste porte er sat op via <code>launchSettings.json</code>.</p>
+    <div class="note"><strong>Hurtigste vej — Docker:</strong> <code>docker compose up --build</code> starter hele platformen. Åbn så <a href="http://localhost:5080/">localhost:5080</a> for agent-status-dashboardet. (Resten af trinene her er den manuelle vej uden Docker.)</div>
     <div class="steps">
       <div class="step"><div class="n"></div><div>
         <h3 style="margin-top:4px">Byg og kør testene</h3>
         <div class="code"><div class="bar"><span>bash</span><button class="copy">Kopiér</button></div>
 <pre><code><span class="c-fn">dotnet</span> build DevAgent.sln
-<span class="c-fn">dotnet</span> test  DevAgent.sln   <span class="c-cmt"># 134 tests skal bestå</span></code></pre></div>
+<span class="c-fn">dotnet</span> test  DevAgent.sln   <span class="c-cmt"># alle tests skal bestå</span></code></pre></div>
       </div></div>
 
       <div class="step"><div class="n"></div><div>
@@ -257,7 +260,7 @@
 
       <div class="step"><div class="n"></div><div>
         <h3 style="margin-top:4px">Brug systemet</h3>
-        <p>Åbn dashboardet på <a href="http://localhost:5080/hangfire">localhost:5080/hangfire</a> eller trigger et job via API — se <a href="#eksempler">eksemplerne nedenfor</a>.</p>
+        <p>Åbn <strong>agent-status-dashboardet</strong> på <a href="http://localhost:5080/">localhost:5080</a> (viser hvilke agenter der har modtaget opgaver + status), <a href="http://localhost:5080/swagger">/swagger</a> for at trigge jobs, eller <a href="http://localhost:5080/hangfire">/hangfire</a> for tidsplanen.</p>
       </div></div>
     </div>
     <div class="note"><strong>Tip:</strong> Med <code>launchSettings.json</code> på plads behøver du ikke sætte <code>ASPNETCORE_URLS</code> — F5 i Visual Studio / Rider eller <code>dotnet run --launch-profile</code> bruger nu de faste porte 5080 og 5081.</div>
@@ -265,19 +268,27 @@
 
   <!-- UI -->
   <section id="brugergraensefladen">
-    <h2><span class="num">04</span>Hvor er brugergrænsefladen?</h2>
-    <p class="sub">Der er bevidst ingen skræddersyet app-UI endnu — systemet styres via HTTP-API'er.</p>
+    <h2><span class="num">04</span>Brugergrænseflader</h2>
+    <p class="sub">Hub'en serverer tre websider — plus REST-API'et.</p>
     <div class="grid two">
       <div class="card">
-        <h4>📊 Hangfire-dashboard</h4>
-        <p>Den eneste indbyggede webside: <code>/hangfire</code> på Hub'en. Her ser du planlagte, kørende og fejlede jobs — fx det timebaserede <code>dependencypilot-package-check</code>.</p>
+        <h4>📊 Agent-status-dashboard <span class="pill">/</span></h4>
+        <p>Roden af Hub'en (<code>localhost:5080/</code>): et live dashboard der viser <strong>hvilke agenter der har modtaget opgaver og deres status</strong>. Opdateres hvert 2. sekund fra <code>GET /jobs</code>.</p>
+      </div>
+      <div class="card">
+        <h4>🧪 Swagger <span class="pill">/swagger</span></h4>
+        <p>Interaktiv API-UI på både Hub (5080) og Runner (5081) — trig jobs direkte fra browseren med <em>Try it out</em>.</p>
+      </div>
+      <div class="card">
+        <h4>⏱️ Hangfire <span class="pill">/hangfire</span></h4>
+        <p>Tidsplanen: planlagte, kørende og fejlede jobs — fx den natlige <code>dotnetupgrader-nightly-sweep</code>.</p>
       </div>
       <div class="card">
         <h4>📡 REST-API</h4>
-        <p>Al styring sker via JSON over HTTP — fra curl, Postman, et script eller (på sigt) en frontend. Denne side er din interaktive reference.</p>
+        <p>Al styring sker via JSON over HTTP — fra curl, Postman eller et script. Denne side er din kopiér-klar reference.</p>
       </div>
     </div>
-    <div class="note">Denne HTML-side er <strong>dokumentation</strong>, ikke en live-konsol. Kør kommandoerne i din terminal — knapperne kopierer dem til udklipsholderen.</div>
+    <div class="note">Denne HTML-side er <strong>dokumentation</strong>; det live dashboard ligger på <a href="http://localhost:5080/">localhost:5080</a>, når Hub'en kører.</div>
   </section>
 
   <!-- EKSEMPLER -->
@@ -398,6 +409,37 @@
   <section id="llm">
     <h2><span class="num">09</span>LLM-providere &amp; model pr. agent</h2>
     <p class="sub">Forge-agenten kan drives af Claude, ChatGPT eller Gemini — og hver agent vælger sin egen model.</p>
+
+    <h3 id="llm-i-spil">Hvornår kommer en LLM i spil?</h3>
+    <p>Det meste af systemet er <strong>deterministisk</strong> og kører helt uden en model. En LLM kommer kun i spil <strong>ét</strong> sted: når en deterministisk ændring får bygningen til at fejle — <em>og</em> build-repair er slået til via <code>DEVAGENT_LLM_PROVIDER</code>.</p>
+    <style>
+      .flnode{background:linear-gradient(180deg,var(--card),var(--card-2));border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-size:14px}
+      .flarrow{color:var(--muted);text-align:center;padding:5px 0;font-size:13px}
+      .fldet{display:block;color:var(--muted);font-size:12px;margin-top:3px}
+      .llmnode{background:linear-gradient(120deg,rgba(167,139,250,.20),rgba(110,168,254,.12));border:1px solid var(--brand-2);border-radius:10px;padding:14px;box-shadow:0 0 22px rgba(167,139,250,.18)}
+    </style>
+    <div style="display:flex;flex-direction:column;gap:0;max-width:580px;margin:18px auto">
+      <div class="flnode">1 · Trigger — manuel eller planlagt agent <span class="fldet">deterministisk</span></div>
+      <div class="flarrow">↓</div>
+      <div class="flnode">2 · Runner — allowlist-gate: repo · jobtype · framework <span class="fldet">deterministisk</span></div>
+      <div class="flarrow">↓</div>
+      <div class="flnode">3 · Sandbox-worker: clone → branch → <strong>deterministisk edit</strong> <span class="fldet">PackageReference / TargetFramework — ren XML, ingen model</span></div>
+      <div class="flarrow">↓</div>
+      <div class="flnode">4 · <code>dotnet build</code></div>
+      <div class="flarrow">↓ &nbsp;build fejler?</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="flnode" style="border-color:var(--green)"><strong>Nej</strong> → test → åbn PR <span class="fldet">altid review-krævende, aldrig auto-merge</span></div>
+        <div class="flnode" style="border-color:var(--amber)"><strong>Ja</strong> → er <code>DEVAGENT_LLM_PROVIDER</code> sat? <span class="fldet">nej → fejl sikkert, ingen PR</span></div>
+      </div>
+      <div class="flarrow">↓ &nbsp;ja-grenen</div>
+      <div class="llmnode">🤖 &nbsp;5 · Forge build-repair — <strong>HER kommer LLM'en i spil</strong>
+        <div class="fldet" style="margin-top:6px">Claude / ChatGPT / Gemini retter byggefejlen gennem de 7 strukturerede værktøjer (read_file, apply_patch, run_dotnet_build …). Ingen shell. Ét afgrænset forsøg, iteration-cappet og auditeret.</div>
+      </div>
+      <div class="flarrow">↓</div>
+      <div class="flnode">6 · <code>dotnet build</code> igen — <strong>deterministisk verifikation</strong> af agentens ændring <span class="fldet">OK → test → åbn PR · stadig fejl → fejl sikkert. Agenten pusher og merger aldrig selv.</span></div>
+    </div>
+    <p class="card">Kort sagt: <strong>~95 % af flowet er deterministisk</strong> og modelfrit. LLM'en røres kun i trin 5, kun ved en fejlende build, og kun når en operatør har slået den til.</p>
+
     <div class="grid three">
       <div class="card"><h4><span class="pill">Claude</span> · standard</h4><p>Anthropic Messages API. Standardmodel <code>claude-opus-4-8</code>. Nøgle: <code>ANTHROPIC_API_KEY</code>.</p></div>
       <div class="card"><h4><span class="pill">ChatGPT</span></h4><p>OpenAI Chat Completions. Standardmodel <code>gpt-4o</code>. Nøgle: <code>OPENAI_API_KEY</code>.</p></div>
@@ -428,8 +470,64 @@
   </section>
 
   <!-- BEGRÆNSNINGER -->
+  <!-- BYG DIN EGEN AGENT -->
+  <section id="egen-agent">
+    <h2><span class="num">10</span>Byg din egen agent</h2>
+    <p class="sub">En agent <em>foreslår</em> arbejde ved nøgle — den kloner, kører kommandoer eller åbner PR'er aldrig selv. Følg samme mønster som <code>DependencyPilot</code> og <code>DotNetUpgrader</code>.</p>
+
+    <div class="steps">
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Definér agentens options</h3>
+        <p>Hvad agenten holder øje med (allowlist-nøgler) + dens egen LLM-model.</p>
+        <div class="code"><div class="bar"><span>MyAgentOptions.cs</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">public sealed class</span> MyAgentOptions {
+  <span class="c-fn">public const string</span> SectionName = <span class="c-str">"MyAgent"</span>;
+  <span class="c-fn">public</span> List&lt;string&gt; RepositoryKeys { get; set; } = <span class="c-fn">new</span>();
+  <span class="c-fn">public</span> LlmClientOptions Llm { get; set; } = <span class="c-fn">new</span>();  <span class="c-cmt">// provider + model pr. agent</span>
+}</code></pre></div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Definér trigger-sømmen</h3>
+        <p>Hvordan agenten starter et platform-job. Backes af en Hub-klient i drift, af en fake i test.</p>
+        <div class="code"><div class="bar"><span>IMyTrigger.cs</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">public interface</span> IMyTrigger {
+  Task&lt;AgentJobResult&gt; StartAsync(MyJobRequest request, CancellationToken ct = <span class="c-fn">default</span>);
+}</code></pre></div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Skriv agent-servicen</h3>
+        <p>Den planlægger kandidater og starter dem — men kun for nøgler på sin egen watch-liste (Runner re-validerer bagefter).</p>
+        <div class="code"><div class="bar"><span>MyAgentService.cs</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-fn">public sealed class</span> MyAgentService {
+  <span class="c-cmt">// ctor: IOptions&lt;MyAgentOptions&gt; + IMyTrigger</span>
+  <span class="c-fn">public</span> IReadOnlyList&lt;Candidate&gt; Plan() =&gt;
+      _options.RepositoryKeys.Select(k =&gt; <span class="c-fn">new</span> Candidate(k)).ToList();
+
+  <span class="c-fn">public async</span> Task&lt;AgentJobResult&gt; StartAsync(Candidate c, CancellationToken ct = <span class="c-fn">default</span>) {
+    <span class="c-fn">if</span> (!_options.RepositoryKeys.Contains(c.RepositoryKey))
+      <span class="c-fn">return</span> AgentJobResult.Rejected(<span class="c-str">"…"</span>, <span class="c-str">"ikke watchet af MyAgent."</span>);
+    <span class="c-fn">return await</span> _trigger.StartAsync(<span class="c-fn">new</span> MyJobRequest { RepositoryKey = c.RepositoryKey }, ct);
+  }
+}</code></pre></div>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Tilføj jobtypen til platformen (hvis ny)</h3>
+        <p>En ny slags arbejde kræver: et <code>AgentJobType</code>-medlem, en <code>…JobRequest</code> (kun nøgler!), en Runner-validering + endpoint, og en deterministisk worker-edit. Genbrug <code>RepoWorkflow</code> så du gratis får build/test/<strong>repair</strong>/PR.</p>
+      </div></div>
+
+      <div class="step"><div class="n"></div><div>
+        <h3 style="margin-top:4px">Kør den planlagt (valgfrit)</h3>
+        <p>Registrér en Hangfire <code>RecurringJob</code> der kalder <code>service.Plan()</code> og starter hver kandidat — præcis som <code>ScheduledDotNetUpgradeJob</code>.</p>
+      </div></div>
+    </div>
+    <div class="note"><strong>Tjekliste:</strong> agenten tager kun imod <em>nøgler</em> (aldrig URL'er/images), den re-valideres af Runner, resultatet er altid en review-krævende PR, og alt auditeres. Hold den fri for platform-infrastruktur — den <em>komponerer</em> kun.</div>
+  </section>
+
   <section id="begraensninger">
-    <h2><span class="num">10</span>Nuværende begrænsninger</h2>
+    <h2><span class="num">11</span>Nuværende begrænsninger</h2>
     <p class="sub">Det er en første milepæl — vid hvad der er ægte og hvad der er stub.</p>
     <div class="note warn"><strong>Stub-eksekvering:</strong> <code>PodmanSandboxJobRunner</code> samt git-/NuGet-providerne er placeholders. Et accepteret job når valideringsgaten og returnerer <span class="s-ok">Validated</span>, men der startes <em>ingen</em> container, og der oprettes <em>ingen</em> rigtig pull request endnu.</div>
     <div class="note warn"><strong>LLM kræver en API-nøgle:</strong> Klienterne til Claude/ChatGPT/Gemini er på plads (<code>DevAgent.Bridge.Llm</code>), men kører kun når den relevante nøgle er sat i miljøet (<code>ANTHROPIC_API_KEY</code> / <code>OPENAI_API_KEY</code> / <code>GEMINI_API_KEY</code>). Build-repair-trinet i sandbox-worker'en er stadig opt-in.</div>

@@ -86,7 +86,7 @@ public sealed class TargetFrameworkUpdater
 
         if (changed)
         {
-            doc.Save(projectFile);
+            ProjectXml.Save(doc, projectFile);
         }
 
         return changed;
