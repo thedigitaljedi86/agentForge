@@ -1,13 +1,13 @@
 namespace DevAgent.Forge.Tests;
 
-using System.Reflection;
 using DevAgent.Forge;
+using DevAgent.Forge.Tools;
 using Xunit;
 
 /// <summary>
-/// Forge is the future LLM layer. These tests lock in the rule that the LLM can
-/// only ever act through explicit, structured tools — there is no shell, no
-/// "exec", and no generic command tool now or by accident later.
+/// These tests lock in the rule that the LLM can only ever act through explicit,
+/// structured tools — there is no shell, no "exec", and no generic command tool
+/// now or by accident later.
 /// </summary>
 public class StructuredToolSurfaceTests
 {
@@ -17,40 +17,52 @@ public class StructuredToolSurfaceTests
             .ToList();
 
     [Fact]
-    public void No_shell_or_exec_tool_exists()
+    public void No_shell_or_exec_tool_type_exists()
     {
         foreach (var type in ToolCallTypes())
         {
-            var name = type.Name.ToLowerInvariant();
-            Assert.DoesNotContain("shell", name);
-            Assert.DoesNotContain("exec", name);
+            var instance = (ToolCallRequest)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type);
+            var toolName = (string)type.GetProperty(nameof(ToolCallRequest.ToolName))!.GetValue(instance)!;
 
-            // Also check the tool's declared ToolName value.
-            var instance = (ToolCallRequest)FormatterServicesCreate(type);
-            var toolName = type.GetProperty(nameof(ToolCallRequest.ToolName))!.GetValue(instance) as string ?? "";
-            Assert.DoesNotContain("shell", toolName, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("exec", toolName, StringComparison.OrdinalIgnoreCase);
+            foreach (var banned in new[] { "shell", "exec", "bash", "cmd", "command" })
+            {
+                Assert.DoesNotContain(banned, toolName, StringComparison.OrdinalIgnoreCase);
+            }
         }
     }
 
     [Fact]
-    public void Tool_surface_is_limited_to_known_structured_tools()
+    public void Tool_surface_is_exactly_the_seven_allowed_tools()
     {
-        var names = ToolCallTypes().Select(t => t.Name).OrderBy(n => n).ToArray();
+        var toolNames = ToolCallTypes()
+            .Select(t => (string)t.GetProperty(nameof(ToolCallRequest.ToolName))!
+                .GetValue(System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(t))!)
+            .OrderBy(n => n, StringComparer.Ordinal)
+            .ToArray();
 
         Assert.Equal(
             new[]
             {
-                nameof(ApplyPatchToolCall),
-                nameof(ReadFileToolCall),
-                nameof(RunBuildToolCall),
-                nameof(RunTestToolCall),
+                "apply_patch",
+                "git_status",
+                "list_files",
+                "read_file",
+                "replace_file",
+                "run_dotnet_build",
+                "run_dotnet_test",
             },
-            names);
+            toolNames);
     }
 
-    // Creates an instance without invoking constructors that require members,
-    // sufficient for reading the constant ToolName.
-    private static object FormatterServicesCreate(Type type) =>
-        System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type);
+    [Fact]
+    public void Tool_policy_allowlist_matches_the_tool_types()
+    {
+        var policy = new ToolPolicy();
+        foreach (var type in ToolCallTypes())
+        {
+            var name = (string)type.GetProperty(nameof(ToolCallRequest.ToolName))!
+                .GetValue(System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(type))!;
+            Assert.True(policy.IsAllowed(name), $"Tool '{name}' should be allowed by ToolPolicy.");
+        }
+    }
 }

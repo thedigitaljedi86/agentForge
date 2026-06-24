@@ -61,9 +61,15 @@ manual trigger / Hangfire        allowlist gate:                         clone �
   Worker.DotNet, Runner.Api, Hub.Api.
 * **Agent-specific:** `Agents.DependencyPilot` only — it composes platform capabilities and
   contains no generic platform code.
-* **Where the LLM arrives later:** `DevAgent.Forge`, invoked *inside the sandbox worker* as an
-  optional build/test-fix step. It may act only through the structured tools in
-  `ToolCalls.cs`, each of which must pass `DevAgent.Guard` before running.
+* **The LLM coding agent (`DevAgent.Forge`):** a controlled agent that can fix build/test
+  errors *inside the sandbox worker*. It acts ONLY through the seven structured tools in
+  `ToolCalls.cs` (`list_files`, `read_file`, `apply_patch`, `replace_file`,
+  `run_dotnet_build`, `run_dotnet_test`, `git_status`) — there is no shell, bash, curl,
+  ssh, docker or generic command tool. Every call is path-validated, protected-file-checked,
+  tool-allowlisted and audited; the loop is iteration-capped; the final diff and the model's
+  reasoning summary are saved. Wire it into the worker by passing an `ICodingAgent`
+  (built via `CodingAgentFactory.Create`) as an opt-in build-repair step; the worker still
+  pushes a branch and opens a review-required PR — the agent never merges.
 * **Must stay deterministic & policy-controlled:** the Runner validation gate, all `Guard`
   policies, `SafeCommandRunner`, and the worker's NuGet update path.
 
