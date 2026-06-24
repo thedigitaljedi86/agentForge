@@ -12,11 +12,15 @@
   <ItemGroup>
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.14" />
     <PackageReference Include="Hangfire.MemoryStorage" Version="1.8.1.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <!-- Pin a patched Newtonsoft.Json; Hangfire pulls in a vulnerable 11.0.1 transitively. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
     <ProjectReference Include="..\DevAgent.Audit\DevAgent.Audit.csproj" />
+    <ProjectReference Include="..\Agents.DotNetUpgrader\Agents.DotNetUpgrader.csproj" />
   </ItemGroup>
 
 </Project>

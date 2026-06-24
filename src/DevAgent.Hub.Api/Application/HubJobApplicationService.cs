@@ -13,11 +13,13 @@ public sealed class HubJobApplicationService
 {
     private readonly IRunnerClient _runner;
     private readonly IAuditLog _audit;
+    private readonly IJobTracker _tracker;
 
-    public HubJobApplicationService(IRunnerClient runner, IAuditLog audit)
+    public HubJobApplicationService(IRunnerClient runner, IAuditLog audit, IJobTracker tracker)
     {
         _runner = runner;
         _audit = audit;
+        _tracker = tracker;
     }
 
     public async Task<AgentJobResult> StartNuGetUpdateAsync(
@@ -35,6 +37,9 @@ public sealed class HubJobApplicationService
             RequestedBy = requestedBy,
         };
 
+        var target = $"{repositoryKey}: {packageId}@{targetVersion}";
+        _tracker.Upsert(request.JobId, requestedBy, "NuGetUpdate", target, AgentJobStatus.Pending, "Accepted by Hub.");
+
         await _audit.WriteAsync(new JobAuditEvent
         {
             JobId = request.JobId,
@@ -45,6 +50,7 @@ public sealed class HubJobApplicationService
 
         var result = await _runner.StartNuGetUpdateAsync(request, cancellationToken);
 
+        _tracker.Upsert(result.JobId, requestedBy, "NuGetUpdate", target, result.Status, result.Message);
         await _audit.WriteAsync(new JobAuditEvent
         {
             JobId = result.JobId,
@@ -69,6 +75,9 @@ public sealed class HubJobApplicationService
             RequestedBy = requestedBy,
         };
 
+        var target = $"{repositoryKey} → {targetFramework}";
+        _tracker.Upsert(request.JobId, requestedBy, "DotNetUpgrade", target, AgentJobStatus.Pending, "Accepted by Hub.");
+
         await _audit.WriteAsync(new JobAuditEvent
         {
             JobId = request.JobId,
@@ -79,6 +88,7 @@ public sealed class HubJobApplicationService
 
         var result = await _runner.StartDotNetUpgradeAsync(request, cancellationToken);
 
+        _tracker.Upsert(result.JobId, requestedBy, "DotNetUpgrade", target, result.Status, result.Message);
         await _audit.WriteAsync(new JobAuditEvent
         {
             JobId = result.JobId,
