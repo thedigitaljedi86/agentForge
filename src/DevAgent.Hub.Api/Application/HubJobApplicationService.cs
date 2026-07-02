@@ -22,20 +22,31 @@ public sealed class HubJobApplicationService
         _tracker = tracker;
     }
 
-    public async Task<AgentJobResult> StartNuGetUpdateAsync(
+    /// <summary>Convenience overload used by the manual-trigger endpoint.</summary>
+    public Task<AgentJobResult> StartNuGetUpdateAsync(
         string repositoryKey,
         string packageId,
         string targetVersion,
         string requestedBy,
         CancellationToken cancellationToken = default)
-    {
-        var request = new NuGetUpdateJobRequest
+        => StartNuGetUpdateAsync(new NuGetUpdateJobRequest
         {
             RepositoryKey = repositoryKey,
             PackageId = packageId,
             TargetVersion = targetVersion,
             RequestedBy = requestedBy,
-        };
+        }, cancellationToken);
+
+    /// <summary>
+    /// Request-based entry point used by agents (e.g. DependencyPilot's trigger)
+    /// so the job id they generated is preserved end to end.
+    /// </summary>
+    public async Task<AgentJobResult> StartNuGetUpdateAsync(
+        NuGetUpdateJobRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var (repositoryKey, packageId, targetVersion, requestedBy) =
+            (request.RepositoryKey, request.PackageId, request.TargetVersion, request.RequestedBy);
 
         var target = $"{repositoryKey}: {packageId}@{targetVersion}";
         _tracker.Upsert(request.JobId, requestedBy, "NuGetUpdate", target, AgentJobStatus.Pending, "Accepted by Hub.");

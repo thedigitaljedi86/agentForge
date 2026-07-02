@@ -1,5 +1,7 @@
+using Agents.DependencyPilot;
 using Agents.DotNetUpgrader;
 using DevAgent.Audit;
+using DevAgent.Bridge.NuGet;
 using DevAgent.Hub.Api.Application;
 using DevAgent.Hub.Api.Jobs;
 using Hangfire;
@@ -26,6 +28,23 @@ builder.Services.Configure<DotNetUpgraderOptions>(
     builder.Configuration.GetSection(DotNetUpgraderOptions.SectionName));
 builder.Services.AddScoped<IDotNetUpgradeTrigger, HubDotNetUpgradeTrigger>();
 builder.Services.AddScoped<DotNetUpgradeService>();
+
+// --- DependencyPilot agent + its NuGet bridges ---
+builder.Services.Configure<DependencyPilotOptions>(
+    builder.Configuration.GetSection(DependencyPilotOptions.SectionName));
+
+builder.Services.AddSingleton(
+    builder.Configuration.GetSection(NuGetFeedOptions.SectionName).Get<NuGetFeedOptions>()
+        ?? new NuGetFeedOptions());
+builder.Services.AddHttpClient<INuGetPackageProvider, HttpNuGetPackageProvider>();
+
+builder.Services.AddSingleton(
+    builder.Configuration.GetSection(PackageUsageMapOptions.SectionName).Get<PackageUsageMapOptions>()
+        ?? new PackageUsageMapOptions());
+builder.Services.AddSingleton<IPackageUsageScanner, ConfiguredPackageUsageScanner>();
+
+builder.Services.AddScoped<IDependencyUpdateTrigger, HubDependencyUpdateTrigger>();
+builder.Services.AddScoped<DependencyPilotService>();
 
 // --- Hangfire (in-memory for the first milestone) ---
 builder.Services.AddHangfire(cfg => cfg
@@ -76,7 +95,7 @@ app.MapGet("/jobs", (IJobTracker tracker) =>
 // Hangfire dashboard (local only — secure properly before exposing).
 app.UseHangfireDashboard("/hangfire");
 
-// Placeholder recurring job: check for package updates every hour.
+// DependencyPilot: check watched packages for new versions every hour.
 RecurringJob.AddOrUpdate<PackageUpdateCheckJob>(
     "dependencypilot-package-check",
     job => job.RunAsync(),
@@ -125,7 +144,35 @@ app.MapPost("/hub/dotnetupgrader/upgrade", async (
     return Results.Ok(result);
 });
 
+// --- Webhook: a feed announced a new package version ---
+// SECURITY: The payload carries only a package id + version. Both are checked
+// against DependencyPilot's watch lists before anything happens, and every
+// resulting job still passes the Runner's allowlist gate. A webhook cannot
+// name a repository, an image or a command.
+app.MapPost("/hub/webhooks/nuget-package-published", async (
+    PackagePublishedWebhook body,
+    DependencyPilotService dependencyPilot,
+    CancellationToken cancellationToken) =>
+{
+    var results = await dependencyPilot.HandlePackagePublishedAsync(
+        body.PackageId, body.Version, cancellationToken);
+
+    return Results.Ok(new
+    {
+        started = results.Count(r => r.Status != DevAgent.Contracts.Jobs.AgentJobStatus.Rejected),
+        rejected = results.Count(r => r.Status == DevAgent.Contracts.Jobs.AgentJobStatus.Rejected),
+        results,
+    });
+});
+
 app.Run();
+
+/// <summary>Webhook body: which package, which new version. Nothing else.</summary>
+public sealed record PackagePublishedWebhook
+{
+    public required string PackageId { get; init; }
+    public required string Version { get; init; }
+}
 
 /// <summary>Manual-trigger body. Repository + package are allowlist keys.</summary>
 public sealed record StartNuGetUpdateHubRequest

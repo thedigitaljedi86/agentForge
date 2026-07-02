@@ -10,8 +10,14 @@ repositories and opens pull requests that update dependencies safely.
 > model**. The model can only ever act through structured, policy-checked tools — there
 > is still no shell or generic command tool anywhere.
 
-> 📖 **Using the system / how to run it:** open [`docs/index.html`](docs/index.html) — a
-> single-page, copy-ready guide (services, ports, API examples, security model).
+> 🌐 **Landing page:** [`docs/landing/index.html`](docs/landing/index.html) — what DevAgent is
+> and why it's different, on one page.
+>
+> 📖 **The 10-minute guide:** [`docs/GUIDE.md`](docs/GUIDE.md) — how the whole system works,
+> in plain language (mental model, a job's life, security model, local setup, configuration).
+>
+> 🇩🇰 **Kom godt i gang:** [`docs/index.html`](docs/index.html) — a single-page, copy-ready
+> getting-started reference (services, ports, API examples).
 
 ## Solution layout
 
