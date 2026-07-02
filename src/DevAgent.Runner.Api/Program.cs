@@ -21,7 +21,23 @@ builder.Services.AddSingleton(sp =>
 
 builder.Services.AddSingleton<IAuditLog, ConsoleAuditLog>();
 builder.Services.AddSingleton<ContainerImagePolicy>(sp => sp.GetRequiredService<GuardPolicySet>().ContainerImages);
-builder.Services.AddSingleton<ISandboxJobRunner, PodmanSandboxJobRunner>();
+
+// --- Sandbox runner selection ---
+// "Stub" (default) never starts containers; "Cli" launches hardened, throwaway
+// worker containers via podman (or docker). The mode is operator configuration
+// — callers can never influence it.
+var sandboxOptions = builder.Configuration.GetSection(SandboxOptions.SectionName).Get<SandboxOptions>()
+    ?? new SandboxOptions();
+builder.Services.AddSingleton(sandboxOptions);
+builder.Services.AddSingleton<ISandboxProcessLauncher, ContainerProcessLauncher>();
+if (string.Equals(sandboxOptions.Mode, "Cli", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<ISandboxJobRunner, CliSandboxJobRunner>();
+}
+else
+{
+    builder.Services.AddSingleton<ISandboxJobRunner, PodmanSandboxJobRunner>();
+}
 builder.Services.AddScoped<RunnerJobApplicationService>();
 
 // Swagger / OpenAPI for interactive local testing of the job endpoints.
