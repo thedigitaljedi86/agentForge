@@ -28,7 +28,8 @@ public sealed class NuGetUpdateWorker
         IGitProvider gitProvider,
         Func<string, ICodingAgent>? buildRepairAgentFactory = null)
     {
-        _workflow = new RepoWorkflow(commandRunner, pathValidator, gitProvider, buildRepairAgentFactory);
+        _workflow = new RepoWorkflow(commandRunner, pathValidator, gitProvider, buildRepairAgentFactory,
+            Environment.GetEnvironmentVariable("DEVAGENT_SKILL_INSTRUCTIONS"));
         _updater = updater;
     }
 

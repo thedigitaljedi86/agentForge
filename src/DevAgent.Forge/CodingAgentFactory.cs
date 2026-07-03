@@ -26,7 +26,8 @@ public static class CodingAgentFactory
         CodingAgentOptions? options = null,
         IProcessExecutor? processExecutor = null,
         ProtectedFilePolicy? protectedFiles = null,
-        ToolPolicy? toolPolicy = null)
+        ToolPolicy? toolPolicy = null,
+        IMcpToolExecutor? mcpExecutor = null)
     {
         options ??= new CodingAgentOptions();
         protectedFiles ??= new ProtectedFilePolicy();
@@ -39,7 +40,7 @@ public static class CodingAgentFactory
         var patchService = new PatchApplicationService(paths, protectedFiles, options.AllowDeploymentFileEdits);
         var commandTools = new DotNetCommandTools(commandRunner);
 
-        var handler = new CodingAgentToolHandler(toolPolicy, fileTool, patchService, commandTools, audit, jobId);
+        var handler = new CodingAgentToolHandler(toolPolicy, fileTool, patchService, commandTools, audit, jobId, mcpExecutor);
 
         return new CodingAgent(llm, handler, audit, options);
     }

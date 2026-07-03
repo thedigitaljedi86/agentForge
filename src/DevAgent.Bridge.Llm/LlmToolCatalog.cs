@@ -55,6 +55,34 @@ public static class LlmToolCatalog
     /// <summary>The stable wire names of every tool the agent may call.</summary>
     public static IReadOnlyList<string> ToolNames { get; } = Array.ConvertAll(Defs, d => d.Name);
 
+    /// <summary>
+    /// Wire-name prefix for MCP tools: mcp__{serverKey}__{tool}. MCP tools are
+    /// the ONE dynamic extension point — they are appended per run from the
+    /// agent's validated grants (never discovered by the model), and parse back
+    /// into the single typed <see cref="McpToolCall"/>.
+    /// </summary>
+    public const string McpPrefix = "mcp__";
+
+    private static JsonObject ExtraSchema(LlmToolDescriptor extra, bool includeAdditionalProperties)
+    {
+        JsonObject schema;
+        try
+        {
+            schema = JsonNode.Parse(extra.InputSchemaJson) as JsonObject ?? new JsonObject { ["type"] = "object" };
+        }
+        catch (JsonException)
+        {
+            schema = new JsonObject { ["type"] = "object" };
+        }
+
+        if (!includeAdditionalProperties)
+        {
+            schema.Remove("additionalProperties");
+        }
+
+        return schema;
+    }
+
     /// <summary>JSON-schema "input_schema" object for a tool (fresh node each call).</summary>
     private static JsonObject BuildSchema(ToolDef def, bool includeAdditionalProperties)
     {
@@ -90,7 +118,7 @@ public static class LlmToolCatalog
     }
 
     /// <summary>Anthropic "tools": [{ name, description, input_schema }].</summary>
-    public static JsonArray AnthropicTools()
+    public static JsonArray AnthropicTools(IReadOnlyList<LlmToolDescriptor>? extras = null)
     {
         var arr = new JsonArray();
         foreach (var def in Defs)
@@ -103,11 +131,21 @@ public static class LlmToolCatalog
             });
         }
 
+        foreach (var extra in extras ?? Array.Empty<LlmToolDescriptor>())
+        {
+            arr.Add(new JsonObject
+            {
+                ["name"] = extra.Name,
+                ["description"] = extra.Description,
+                ["input_schema"] = ExtraSchema(extra, includeAdditionalProperties: true),
+            });
+        }
+
         return arr;
     }
 
     /// <summary>OpenAI "tools": [{ type:function, function:{ name, description, parameters } }].</summary>
-    public static JsonArray OpenAiTools()
+    public static JsonArray OpenAiTools(IReadOnlyList<LlmToolDescriptor>? extras = null)
     {
         var arr = new JsonArray();
         foreach (var def in Defs)
@@ -124,11 +162,25 @@ public static class LlmToolCatalog
             });
         }
 
+        foreach (var extra in extras ?? Array.Empty<LlmToolDescriptor>())
+        {
+            arr.Add(new JsonObject
+            {
+                ["type"] = "function",
+                ["function"] = new JsonObject
+                {
+                    ["name"] = extra.Name,
+                    ["description"] = extra.Description,
+                    ["parameters"] = ExtraSchema(extra, includeAdditionalProperties: true),
+                },
+            });
+        }
+
         return arr;
     }
 
     /// <summary>Gemini "tools": [{ function_declarations: [{ name, description, parameters }] }].</summary>
-    public static JsonArray GeminiTools()
+    public static JsonArray GeminiTools(IReadOnlyList<LlmToolDescriptor>? extras = null)
     {
         var declarations = new JsonArray();
         foreach (var def in Defs)
@@ -138,6 +190,16 @@ public static class LlmToolCatalog
                 ["name"] = def.Name,
                 ["description"] = def.Description,
                 ["parameters"] = BuildSchema(def, includeAdditionalProperties: false),
+            });
+        }
+
+        foreach (var extra in extras ?? Array.Empty<LlmToolDescriptor>())
+        {
+            declarations.Add(new JsonObject
+            {
+                ["name"] = extra.Name,
+                ["description"] = extra.Description,
+                ["parameters"] = ExtraSchema(extra, includeAdditionalProperties: false),
             });
         }
 
@@ -154,8 +216,21 @@ public static class LlmToolCatalog
         RunBuildToolCall c => new JsonObject { ["projectOrSolution"] = c.ProjectOrSolution },
         RunTestToolCall c => new JsonObject { ["projectOrSolution"] = c.ProjectOrSolution },
         GitStatusToolCall => new JsonObject(),
+        McpToolCall c => ParseJsonObject(c.ArgumentsJson),
         _ => new JsonObject(),
     };
+
+    private static JsonObject ParseJsonObject(string json)
+    {
+        try
+        {
+            return JsonNode.Parse(json) as JsonObject ?? new JsonObject();
+        }
+        catch (JsonException)
+        {
+            return new JsonObject();
+        }
+    }
 
     /// <summary>
     /// Map a provider's chosen tool (name + arguments) into a typed request.
@@ -166,6 +241,28 @@ public static class LlmToolCatalog
     public static ToolCallRequest? Parse(string toolName, JsonObject? args, string? toolCallId = null)
     {
         args ??= new JsonObject();
+
+        // MCP wire names parse into the single typed McpToolCall. The server
+        // key cannot contain "__" (enforced at registration), so the first
+        // separator after the prefix splits key from tool unambiguously.
+        if (toolName.StartsWith(McpPrefix, StringComparison.Ordinal))
+        {
+            var rest = toolName[McpPrefix.Length..];
+            var sep = rest.IndexOf("__", StringComparison.Ordinal);
+            if (sep <= 0 || sep >= rest.Length - 2)
+            {
+                return null;
+            }
+
+            ToolCallRequest mcp = new McpToolCall
+            {
+                ServerKey = rest[..sep],
+                Tool = rest[(sep + 2)..],
+                ArgumentsJson = args.ToJsonString(),
+            };
+
+            return string.IsNullOrEmpty(toolCallId) ? mcp : mcp with { ToolCallId = toolCallId! };
+        }
 
         ToolCallRequest? request = toolName switch
         {

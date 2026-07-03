@@ -42,7 +42,7 @@ public class RunnerJobApplicationServiceTests
     private static (RunnerJobApplicationService service, RecordingSandboxRunner runner) NewService(GuardPolicySet policies)
     {
         var runner = new RecordingSandboxRunner();
-        var service = new RunnerJobApplicationService(policies, runner, new ConsoleAuditLog());
+        var service = new RunnerJobApplicationService(new StaticGuardPolicySource(policies), runner, new ConsoleAuditLog());
         return (service, runner);
     }
 

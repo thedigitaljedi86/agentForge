@@ -16,6 +16,13 @@ public sealed record CodingAgentTask
 
     /// <summary>Build/test errors to fix, if this is a repair task.</summary>
     public string? FailureContext { get; init; }
+
+    /// <summary>
+    /// Instructions from admin-registered SKILLS applied to this task. Skills
+    /// add guidance, never capability — every tool they mention still has to
+    /// pass the same policy gates as any other call.
+    /// </summary>
+    public string? SkillInstructions { get; init; }
 }
 
 /// <summary>One step in the agent loop: the tool that ran and its result.</summary>
@@ -111,4 +118,16 @@ public interface ILlmClient
 public interface IToolCallHandler
 {
     Task<ToolCallResult> HandleAsync(ToolCallRequest request, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Executes a single MCP tool call. Implementations MUST validate the call
+/// against the server registry and the agent's grants (fail closed) before
+/// contacting the gateway, and must never receive server credentials.
+/// The composition root (the worker) supplies this; when absent, every
+/// McpToolCall is denied.
+/// </summary>
+public interface IMcpToolExecutor
+{
+    Task<ToolCallResult> ExecuteAsync(McpToolCall call, CancellationToken cancellationToken = default);
 }

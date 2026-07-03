@@ -39,4 +39,26 @@ public sealed record SandboxJobRequest
 
     /// <summary>Whether the update should refuse to downgrade.</summary>
     public bool OnlyUpgrade { get; init; } = true;
+
+    // ---- Agent capabilities, resolved SERVER-SIDE by the Runner from the ----
+    // ---- admin store. None of these can be supplied by an API caller.    ----
+
+    /// <summary>LLM provider for the opt-in repair step (operator/agent config).</summary>
+    public string? LlmProvider { get; init; }
+
+    /// <summary>LLM model for the repair step.</summary>
+    public string? LlmModel { get; init; }
+
+    /// <summary>
+    /// JSON array of MCP tool descriptors ({serverKey,name,description,
+    /// inputSchemaJson}) the agent is granted — the registry∩grant intersection
+    /// computed by the Runner. Empty = no MCP access.
+    /// </summary>
+    public string McpToolsJson { get; init; } = "[]";
+
+    /// <summary>Short-lived per-job token for the Runner's MCP gateway.</summary>
+    public string? McpGatewayToken { get; init; }
+
+    /// <summary>Resolved skill instructions (inline or MCP-prompt-backed).</summary>
+    public string? SkillInstructions { get; init; }
 }

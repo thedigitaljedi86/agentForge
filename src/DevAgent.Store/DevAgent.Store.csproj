@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Store is the platform's mutable configuration store (SQLite via
+    EF Core): allowlists, MCP registrations, skills, webhooks, agent settings
+    and the admin user. The admin UI writes here; the Runner and Hub read from
+    here (with appsettings fallback when no database is configured).
+
+    SECURITY: secrets are stored as REFERENCES (environment-variable names),
+    never as values — with the single exception of the webhook shared secret
+    and the admin password HASH, which exist only to verify inbound callers.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Store</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

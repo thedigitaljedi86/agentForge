@@ -19,6 +19,7 @@
     <ProjectReference Include="..\DevAgent.Bridge.Git\DevAgent.Bridge.Git.csproj" />
     <ProjectReference Include="..\DevAgent.Forge\DevAgent.Forge.csproj" />
     <ProjectReference Include="..\DevAgent.Bridge.Llm\DevAgent.Bridge.Llm.csproj" />
+    <ProjectReference Include="..\DevAgent.Bridge.Mcp\DevAgent.Bridge.Mcp.csproj" />
   </ItemGroup>
 
 </Project>

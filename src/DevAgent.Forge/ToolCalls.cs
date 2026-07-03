@@ -79,6 +79,26 @@ public sealed record GitStatusToolCall : ToolCallRequest
     public override string ToolName => "git_status";
 }
 
+/// <summary>
+/// Call a tool on a REGISTERED MCP server. This is the single, typed doorway
+/// for all MCP dynamism: the server is referenced by allowlist key, the tool
+/// must pass the registry∩grant gate before execution, and the sandbox only
+/// ever reaches the Runner's MCP gateway — never the server itself.
+/// </summary>
+public sealed record McpToolCall : ToolCallRequest
+{
+    public override string ToolName => $"mcp__{ServerKey}__{Tool}";
+
+    /// <summary>Allowlist key of the registered MCP server.</summary>
+    public required string ServerKey { get; init; }
+
+    /// <summary>Tool name as advertised by the server.</summary>
+    public required string Tool { get; init; }
+
+    /// <summary>Tool arguments as an opaque JSON object (validated by the server's schema).</summary>
+    public string ArgumentsJson { get; init; } = "{}";
+}
+
 /// <summary>Result of a single tool call.</summary>
 public sealed record ToolCallResult
 {

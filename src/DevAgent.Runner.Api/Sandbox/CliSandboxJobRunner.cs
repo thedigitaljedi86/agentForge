@@ -40,11 +40,18 @@ public sealed class SandboxOptions
     public string ContainerWorkspace { get; set; } = "/workspace";
 
     /// <summary>
-    /// LLM provider/model for the worker's opt-in build-repair step. Chosen by
-    /// the OPERATOR here — never by the API caller. Empty = repair disabled.
+    /// Fallback LLM provider/model for the worker's opt-in build-repair step
+    /// when the agent has no pin of its own. Operator configuration — never
+    /// caller input. Empty = repair disabled.
     /// </summary>
     public string LlmProvider { get; set; } = string.Empty;
     public string LlmModel { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Base URL the SANDBOX uses to reach this Runner's MCP gateway (e.g.
+    /// http://runner:8080). Empty = workers get no MCP access.
+    /// </summary>
+    public string McpGatewayBaseUrl { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -163,9 +170,22 @@ public sealed class CliSandboxJobRunner : ISandboxJobRunner
         Env("DEVAGENT_GIT_TOKEN", _options.WorkerGitToken);
         Env("DEVAGENT_ONLY_UPGRADE", request.OnlyUpgrade.ToString().ToLowerInvariant());
 
-        // Operator-chosen repair model (never caller-chosen). Empty = disabled.
-        Env("DEVAGENT_LLM_PROVIDER", _options.LlmProvider);
-        Env("DEVAGENT_LLM_MODEL", _options.LlmModel);
+        // Repair model: the agent's admin-configured pin wins; the operator's
+        // sandbox-level fallback applies otherwise. Never caller-chosen.
+        Env("DEVAGENT_LLM_PROVIDER", string.IsNullOrEmpty(request.LlmProvider) ? _options.LlmProvider : request.LlmProvider);
+        Env("DEVAGENT_LLM_MODEL", string.IsNullOrEmpty(request.LlmModel) ? _options.LlmModel : request.LlmModel);
+
+        // MCP access: granted tool descriptors + a per-job gateway token. The
+        // sandbox can only reach the GATEWAY — never an MCP server directly,
+        // and never any server credential.
+        if (!string.IsNullOrEmpty(_options.McpGatewayBaseUrl) && !string.IsNullOrEmpty(request.McpGatewayToken))
+        {
+            Env("DEVAGENT_MCP_GATEWAY", _options.McpGatewayBaseUrl);
+            Env("DEVAGENT_MCP_TOKEN", request.McpGatewayToken);
+            Env("DEVAGENT_MCP_TOOLS", request.McpToolsJson);
+        }
+
+        Env("DEVAGENT_SKILL_INSTRUCTIONS", request.SkillInstructions);
 
         // The image is always the LAST argument, and it is the allowlisted one.
         args.Add(request.ContainerImage);

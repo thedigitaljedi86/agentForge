@@ -15,7 +15,7 @@ The platform's core idea is simple:
 
 > **Automation gets a narrow, allowlisted lane. Everything it does is logged. The output is always a pull request — never a merge.**
 
-That last sentence is not a promise, it's architecture. There is no code path in the platform that merges anything, and 222 tests fail if someone tries to add the dangerous parts back.
+That last sentence is not a promise, it's architecture. There is no code path in the platform that merges anything, and 269 tests fail if someone tries to add the dangerous parts back.
 
 ---
 
@@ -43,6 +43,8 @@ Think of it as four stations on a one-way conveyor belt, with a security guard a
 | **DevAgent.Guard** | The rulebook: allowlists, path validation, the safe command runner. Used by everyone. |
 | **DevAgent.Forge** | The caged AI: a coding agent with exactly seven tools, for fixing broken builds. Opt-in. |
 | **DevAgent.Bridge.Llm** | Real LLM clients — **Claude (default), ChatGPT and Gemini** — behind one interface; each agent can pin its own model. |
+| **DevAgent.Bridge.Mcp** | MCP client (tools **and prompts**) + the grant policy. Agents reach MCP servers only via the Runner's gateway. |
+| **DevAgent.Store** | The SQLite configuration store the **admin console** edits: allowlists, agent settings, MCP servers, skills, webhooks. |
 | **DevAgent.Audit** | The camera crew: append-only log of decisions, prompts, tool calls and diffs. |
 | **Agents.DependencyPilot** | Decides *which package updates* should happen and asks the platform to do them. |
 | **Agents.DotNetUpgrader** | Decides *which framework upgrades* should happen — the example of a scheduled agent. |
@@ -110,10 +112,11 @@ Prerequisites: Docker or Podman (with compose), or just the .NET 10 SDK to run t
 **1. Start the platform**
 
 ```bash
-docker compose up --build
+DEVAGENT_ADMIN_PASSWORD='choose-one' docker compose up --build
 # http://localhost:5080/          → live agent-status dashboard
+# http://localhost:5080/admin/    → ADMIN CONSOLE (allowlists, agents, MCP, skills, webhooks, audit)
 # http://localhost:5080/swagger   → Hub API (manual triggers)
-# http://localhost:5080/hangfire  → schedule (recurring agents)
+# http://localhost:5080/hangfire  → schedule (admin login required)
 # http://localhost:5081/swagger   → Runner API (the validation gate)
 ```
 
@@ -161,7 +164,7 @@ Runner__Sandbox__WorkerGitToken=<limited-bot-token>
 
 …and make sure the worker image appears in both `Guard:ContainerImages` and `Guard:JobTypeImages`.
 
-**Run the tests** (222 across 9 projects, including every security invariant):
+**Run the tests** (269 across 11 projects, including every security invariant):
 
 ```bash
 dotnet test
@@ -207,9 +210,58 @@ All power sits in configuration files that only administrators edit. Callers of 
 
 Note the layering: the agents' watch lists say what they *care about*; the Runner's Guard lists say what the platform *is allowed to do*. A job must pass **both**.
 
-**The worker** reads only environment variables (all set by the Runner, never by users): `DEVAGENT_JOB_TYPE`, `DEVAGENT_JOB_ID`, `DEVAGENT_CLONE_URL`, `DEVAGENT_BASE_BRANCH`, `DEVAGENT_PACKAGE_ID` / `DEVAGENT_TARGET_VERSION` (NuGet jobs), `DEVAGENT_TARGET_FRAMEWORK` (upgrade jobs), `DEVAGENT_WORKSPACE`, `DEVAGENT_GIT_TOKEN`, `DEVAGENT_ONLY_UPGRADE`, and — only when the operator enables AI repair — `DEVAGENT_LLM_PROVIDER` + `DEVAGENT_LLM_MODEL`.
+**With the store enabled** (`ConnectionStrings:DevAgent`, on by default in compose), all of the
+above lives in SQLite and is edited in the **admin console** instead — the JSON sections then
+only seed an empty database on first run.
+
+**The worker** reads only environment variables (all set by the Runner, never by users): `DEVAGENT_JOB_TYPE`, `DEVAGENT_JOB_ID`, `DEVAGENT_CLONE_URL`, `DEVAGENT_BASE_BRANCH`, `DEVAGENT_PACKAGE_ID` / `DEVAGENT_TARGET_VERSION` (NuGet jobs), `DEVAGENT_TARGET_FRAMEWORK` (upgrade jobs), `DEVAGENT_WORKSPACE`, `DEVAGENT_GIT_TOKEN`, `DEVAGENT_ONLY_UPGRADE`, and — only when the operator enables AI repair — `DEVAGENT_LLM_PROVIDER` + `DEVAGENT_LLM_MODEL`, plus, when MCP is granted, `DEVAGENT_MCP_GATEWAY`, `DEVAGENT_MCP_TOKEN` (per-job), `DEVAGENT_MCP_TOOLS` (granted descriptors) and `DEVAGENT_SKILL_INSTRUCTIONS`.
 
 ---
+
+## MCP servers & skills
+
+**MCP servers** (Model Context Protocol) give agents extra tools and prompts — under the
+platform's rules, not instead of them:
+
+1. An administrator **registers** a server in the admin console: a key, its endpoint, and
+   which of its tools/prompts the platform may use at all. Credentials are referenced as an
+   environment-variable *name* on the Runner — the secret value is never stored or displayed.
+2. Each agent gets an explicit **grant**: which servers, which tools, which prompts. The
+   platform always takes the **intersection** of registration and grant — neither side can
+   widen the other.
+3. At job start the Runner lists the granted tools (with their real schemas), mints a
+   **short-lived per-job token**, and passes both into the sandbox. The model sees the tools
+   as `mcp__{server}__{tool}`.
+4. When the agent calls one, the sandbox talks to the **Runner's MCP gateway** — never to the
+   MCP server itself. The gateway re-validates the call against registration ∩ grant, holds
+   the credentials, executes it, and audits it. An ungranted call is denied and logged.
+
+**Skills** are reusable instruction packages for the repair agent — inline markdown, or backed
+by a registered **MCP prompt** (fetched host-side at job time, with arguments). A skill can
+*require* tools, but it can never *grant* them: if an agent lacks a required tool, the skill is
+refused and the refusal is audited. Skill text that reaches the model is recorded as prompt
+evidence.
+
+The security model is unchanged by all of this: the built-in tool set stays closed; MCP adds
+exactly one new typed call, behind two allowlists, a gateway, and the audit log.
+
+## The admin console
+
+`http://localhost:5080/admin/` — login `admin` + `DEVAGENT_ADMIN_PASSWORD` (if unset, a random
+password is generated and printed once in the Hub's logs). Behind the login you manage:
+
+- **Allowlists** — repositories (key → clone URL), packages, container images, the job-type →
+  image map, target frameworks, and the package-usage map.
+- **Agents** — watch lists, LLM provider/model pin, MCP grants and skills per agent.
+- **MCP servers** and **Skills** — as described above.
+- **Webhooks** — enable/disable and shared secrets (`X-DevAgent-Secret`).
+- **Audit** — the live audit trail and every configuration change ever made (who, what, when).
+
+Changes are stored in SQLite (shared with the Runner via a volume) and apply from the **next
+job** — no restart. Every save is recorded twice: in the config-change log and in the audit
+trail. Authentication is cookie-based with a PBKDF2-hashed local admin user; the seam is
+standard ASP.NET authentication, so OIDC (Entra ID, Keycloak…) can be added without touching
+the UI. The Hangfire dashboard requires the same login outside Development.
 
 ## The AI repair loop, honestly
 
@@ -237,7 +289,9 @@ Honesty section — the platform is wired end-to-end and tested, but a few edges
 | Sandbox mode | `Stub` by default; hardened `Cli` (podman/docker) launcher implemented and tested | Flip config, later swap for Kubernetes Jobs behind `ISandboxJobRunner` |
 | Job tracking & Hangfire | In-memory (reset on restart) | Point Hangfire + the job tracker at a database |
 | Package usage map | Declarative config | Replace with an index produced by sandboxed scans |
-| Audit sink | Console | Implement `IAuditLog` against a durable, append-only store |
+| Audit sink | Console + in-memory ring (admin console window) | Implement `IAuditLog` against a durable, append-only store |
+| Admin login | Local user (PBKDF2), cookie auth | Add your OIDC provider behind the same authentication seam |
+| MCP transport | Streamable HTTP (tools + prompts) | stdio-launched local servers as a separately-gated feature |
 
 Each row is behind an interface, so none of these upgrades touch the security model.
 
@@ -278,6 +332,8 @@ src/
   DevAgent.Bridge.Git/       IGitProvider + placeholder implementation
   DevAgent.Bridge.NuGet/     NuGet V3 feed client + package-usage scanner
   DevAgent.Bridge.Llm/       Claude / ChatGPT / Gemini clients + factory (model per agent)
+  DevAgent.Bridge.Mcp/       MCP client (tools + prompts), grant policy, gateway client
+  DevAgent.Store/            SQLite config store (EF Core): everything the admin console edits
   DevAgent.Forge/            The caged coding agent: tools, policies, loop, factory
   DevAgent.Worker.DotNet/    Runs inside the sandbox: clone→edit→build/test→(repair)→PR
   DevAgent.Runner.Api/       The gate: validation + stub/CLI (podman/docker) sandbox launchers
@@ -285,7 +341,7 @@ src/
   Agents.DependencyPilot/    Agent: NuGet dependency updates
   Agents.DotNetUpgrader/     Agent: target-framework upgrades (scheduled example)
 
-tests/                       9 projects, 222 tests — every security invariant is locked
+tests/                       9 projects, 269 tests — every security invariant is locked
 docs/
   GUIDE.md                   This document
   index.html                 Single-page getting-started reference (Danish)
