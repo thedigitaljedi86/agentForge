@@ -76,7 +76,7 @@ public sealed class PackageReferenceUpdater
 
         if (changed)
         {
-            doc.Save(projectFile);
+            ProjectXml.Save(doc, projectFile);
         }
 
         return changed;

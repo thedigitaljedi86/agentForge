@@ -5,6 +5,7 @@ using DevAgent.Contracts.Jobs;
 using DevAgent.Contracts.Sandbox;
 using DevAgent.Contracts.Validation;
 using DevAgent.Guard.Policies;
+using DevAgent.Runner.Api.Mcp;
 using DevAgent.Runner.Api.Sandbox;
 
 /// <summary>
@@ -21,24 +22,29 @@ using DevAgent.Runner.Api.Sandbox;
 /// </summary>
 public sealed class RunnerJobApplicationService
 {
-    private readonly GuardPolicySet _policies;
+    private readonly IGuardPolicySource _policySource;
     private readonly ISandboxJobRunner _sandboxRunner;
     private readonly IAuditLog _audit;
+    private readonly ISandboxJobEnricher _enricher;
 
     public RunnerJobApplicationService(
-        GuardPolicySet policies,
+        IGuardPolicySource policySource,
         ISandboxJobRunner sandboxRunner,
-        IAuditLog audit)
+        IAuditLog audit,
+        ISandboxJobEnricher? enricher = null)
     {
-        _policies = policies;
+        _policySource = policySource;
         _sandboxRunner = sandboxRunner;
         _audit = audit;
+        _enricher = enricher ?? new NullSandboxJobEnricher();
     }
 
     public async Task<AgentJobResult> StartNuGetUpdateAsync(
         NuGetUpdateJobRequest request,
         CancellationToken cancellationToken = default)
     {
+        var _policies = await _policySource.GetAsync(cancellationToken);
+
         // 1. Job type allowlist.
         var jobTypeCheck = _policies.JobTypes.Validate(request.JobType);
         if (!jobTypeCheck.IsValid)
@@ -93,6 +99,84 @@ public sealed class RunnerJobApplicationService
             Allowed = true,
             Reason = $"All allowlists passed for {request.RepositoryKey}/{request.PackageId}@{request.TargetVersion}.",
         }, cancellationToken);
+
+        // Attach the requesting agent's capabilities (LLM pin, MCP grants,
+        // skills) — resolved from the admin store, never from the caller.
+        sandboxRequest = await _enricher.EnrichAsync(sandboxRequest, request.RequestedBy, cancellationToken);
+
+        var sandboxResult = await _sandboxRunner.RunAsync(sandboxRequest, cancellationToken);
+
+        return new AgentJobResult
+        {
+            JobId = sandboxResult.JobId,
+            Status = sandboxResult.Status,
+            Message = sandboxResult.Message,
+            PullRequestUrl = sandboxResult.PullRequestUrl,
+        };
+    }
+
+    public async Task<AgentJobResult> StartDotNetUpgradeAsync(
+        DotNetUpgradeJobRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var _policies = await _policySource.GetAsync(cancellationToken);
+
+        // 1. Job type allowlist.
+        var jobTypeCheck = _policies.JobTypes.Validate(request.JobType);
+        if (!jobTypeCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "job-type", jobTypeCheck, cancellationToken);
+        }
+
+        // 2. Repository allowlist (resolves a KEY, never a raw URL).
+        var repoCheck = _policies.Repositories.Validate(request.RepositoryKey);
+        if (!repoCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "repository", repoCheck, cancellationToken);
+        }
+
+        // 3. Target framework allowlist + format.
+        var frameworkCheck = _policies.TargetFrameworks.Validate(request.TargetFramework);
+        if (!frameworkCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "target-framework", frameworkCheck, cancellationToken);
+        }
+
+        // 4. Resolve trusted values from policy.
+        var repository = _policies.Repositories.Resolve(request.RepositoryKey);
+        var image = _policies.JobTypes.ResolveImage(request.JobType);
+
+        // 5. Container image allowlist (defence in depth).
+        var imageCheck = _policies.ContainerImages.Validate(image);
+        if (!imageCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "container-image", imageCheck, cancellationToken);
+        }
+
+        // 6. Build the fully-validated sandbox request and dispatch.
+        var sandboxRequest = new SandboxJobRequest
+        {
+            JobId = request.JobId,
+            JobType = request.JobType,
+            CloneUrl = repository.CloneUrl,
+            BaseBranch = repository.BaseBranch,
+            ContainerImage = image,
+            TargetFramework = request.TargetFramework,
+            OnlyUpgrade = request.OnlyUpgrade,
+        };
+
+        await _audit.WriteAsync(new DecisionAuditEvent
+        {
+            JobId = request.JobId,
+            Actor = nameof(RunnerJobApplicationService),
+            Decision = "start-sandbox-job",
+            Allowed = true,
+            Reason = $"All allowlists passed for {request.RepositoryKey} -> {request.TargetFramework}.",
+        }, cancellationToken);
+
+        // Attach the requesting agent's capabilities (LLM pin, MCP grants,
+        // skills) — resolved from the admin store, never from the caller.
+        sandboxRequest = await _enricher.EnrichAsync(sandboxRequest, request.RequestedBy, cancellationToken);
 
         var sandboxResult = await _sandboxRunner.RunAsync(sandboxRequest, cancellationToken);
 

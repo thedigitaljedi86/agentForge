@@ -18,4 +18,10 @@ public enum AgentJobType
 
     /// <summary>Future: LLM-assisted build/test fix inside a sandbox worker.</summary>
     LlmAssistedFix = 2,
+
+    /// <summary>
+    /// Deterministic upgrade of the target framework (e.g. net6.0 -> net8.0)
+    /// across every project in a repository, inside a sandbox worker.
+    /// </summary>
+    DotNetUpgrade = 3,
 }

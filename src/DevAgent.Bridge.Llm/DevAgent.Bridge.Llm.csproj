@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Bridge.Llm contains concrete ILlmClient implementations for the
+    DevAgent.Forge coding agent. Three providers are supported: Anthropic Claude
+    (default), OpenAI ChatGPT and Google Gemini.
+
+    SECURITY: These clients only ever translate the agent's structured tool set
+    (the seven tools in DevAgent.Forge) into provider tool-calling schemas and
+    map the provider's chosen tool call back into a strongly-typed
+    ToolCallRequest. They never expose a shell or a generic command tool — the
+    model can only ever pick one of the structured, policy-checked tools, and
+    the CodingAgent loop validates every call before it runs.
+
+    The wire formats follow each provider's official REST API (Anthropic
+    Messages API, OpenAI Chat Completions, Gemini generateContent). Raw HTTP is
+    used deliberately so all three providers share one small, auditable,
+    dependency-light implementation with no provider SDKs to keep in sync.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Bridge.Llm</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Forge\DevAgent.Forge.csproj" />
+  </ItemGroup>
+
+</Project>

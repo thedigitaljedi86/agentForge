@@ -1,32 +1,40 @@
 namespace DevAgent.Hub.Api.Jobs;
 
+using Agents.DependencyPilot;
 using DevAgent.Audit;
 
 /// <summary>
-/// Placeholder Hangfire recurring job that will eventually poll for new package
-/// versions and enqueue DependencyPilot workflows. For the first milestone it
-/// only logs an audit heartbeat so the scheduling plumbing is demonstrable.
-///
-/// The real detection logic lives in the DependencyPilot agent, not here — the
-/// Hub just provides the schedule + trigger.
+/// Hangfire recurring job: ask DependencyPilot to check its watched packages
+/// for new versions and start an update workflow for every affected
+/// repository. Every started workflow still passes the Runner's allowlist
+/// gate — the schedule grants no extra authority.
 /// </summary>
 public sealed class PackageUpdateCheckJob
 {
+    private readonly DependencyPilotService _dependencyPilot;
     private readonly IAuditLog _audit;
 
-    public PackageUpdateCheckJob(IAuditLog audit)
+    public PackageUpdateCheckJob(DependencyPilotService dependencyPilot, IAuditLog audit)
     {
+        _dependencyPilot = dependencyPilot;
         _audit = audit;
     }
 
     // Invoked by Hangfire on a recurring schedule.
     public async Task RunAsync()
     {
+        var candidates = await _dependencyPilot.CheckForPackageUpdatesAsync();
+
         await _audit.WriteAsync(new JobAuditEvent
         {
             Actor = nameof(PackageUpdateCheckJob),
-            Status = "heartbeat",
-            Message = "Placeholder package-update check ran. Real detection arrives with DependencyPilot wiring.",
+            Status = "scan",
+            Message = $"Package update check found {candidates.Count} candidate(s).",
         });
+
+        foreach (var candidate in candidates)
+        {
+            await _dependencyPilot.StartDependencyUpdateWorkflowAsync(candidate);
+        }
     }
 }

@@ -78,6 +78,54 @@ public sealed class DependencyPilotService
     }
 
     /// <summary>
+    /// Event-driven entry point: a feed reported that a new version of a
+    /// package was published. Validated against the watch lists first — an
+    /// unwatched package is rejected outright, so a webhook cannot make the
+    /// platform touch anything an administrator didn't opt into.
+    /// </summary>
+    public async Task<IReadOnlyList<AgentJobResult>> HandlePackagePublishedAsync(
+        string packageId,
+        string version,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(packageId) || string.IsNullOrWhiteSpace(version))
+        {
+            return new[] { AgentJobResult.Rejected(Guid.NewGuid().ToString("N"), "Package id and version are required.") };
+        }
+
+        if (!_options.WatchedPackages.Contains(packageId, StringComparer.OrdinalIgnoreCase))
+        {
+            return new[]
+            {
+                AgentJobResult.Rejected(
+                    Guid.NewGuid().ToString("N"),
+                    $"Package '{packageId}' is not watched by DependencyPilot."),
+            };
+        }
+
+        var results = new List<AgentJobResult>();
+        foreach (var repositoryKey in _options.RepositoryKeys)
+        {
+            var usage = await _usageScanner.ScanAsync(repositoryKey, packageId, cancellationToken);
+            if (!usage.IsUsed)
+            {
+                continue;
+            }
+
+            if (usage.CurrentVersion is not null &&
+                string.Equals(usage.CurrentVersion, version, StringComparison.OrdinalIgnoreCase))
+            {
+                continue; // already on the published version
+            }
+
+            results.Add(await StartDependencyUpdateWorkflowAsync(
+                new DependencyUpdateCandidate(repositoryKey, packageId, version), cancellationToken));
+        }
+
+        return results;
+    }
+
+    /// <summary>
     /// Starts a platform workflow for a single update candidate. The candidate's
     /// repository key and package id must already be on the agent's watch lists;
     /// the Runner performs the authoritative allowlist validation afterwards.
