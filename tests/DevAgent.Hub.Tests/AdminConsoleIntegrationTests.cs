@@ -186,6 +186,82 @@ public sealed class AdminConsoleIntegrationTests : IClassFixture<AdminConsoleInt
     }
 
     [Fact]
+    public async Task Ci_connection_crud_round_trips_validates_and_is_recorded()
+    {
+        var client = NewClient();
+        await LoginAsync(client);
+        client.DefaultRequestHeaders.Add("X-DevAgent-Admin", "1");
+
+        var create = await client.PostAsJsonAsync("/admin/api/ci-connections", new
+        {
+            repositoryKey = "svc-ci",
+            provider = "GitLabCi",
+            baseUrl = "https://gitlab.internal",
+            projectPath = "platform/svc-ci",
+            tokenEnvVar = "DEVAGENT_GITLAB_TOKEN",
+        });
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+
+        var list = await client.GetStringAsync("/admin/api/ci-connections");
+        Assert.Contains("svc-ci", list);
+        Assert.Contains("GitLabCi", list);
+        Assert.Contains("DEVAGENT_GITLAB_TOKEN", list); // env-var NAME; no secret value exists to leak
+
+        // Unknown provider and non-URL base are rejected.
+        var badProvider = await client.PostAsJsonAsync("/admin/api/ci-connections", new
+        {
+            repositoryKey = "svc-ci",
+            provider = "Jenkins",
+            baseUrl = "https://x",
+            projectPath = "a/b",
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, badProvider.StatusCode);
+
+        var badUrl = await client.PostAsJsonAsync("/admin/api/ci-connections", new
+        {
+            repositoryKey = "svc-ci",
+            provider = "GitHubActions",
+            baseUrl = "not a url",
+            projectPath = "a/b",
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, badUrl.StatusCode);
+
+        var changes = await client.GetStringAsync("/admin/api/config-changes");
+        Assert.Contains("ci-connections", changes);
+
+        var delete = await client.DeleteAsync("/admin/api/ci-connections/svc-ci");
+        Assert.Equal(HttpStatusCode.OK, delete.StatusCode);
+        Assert.DoesNotContain("svc-ci", await client.GetStringAsync("/admin/api/ci-connections"));
+    }
+
+    [Fact]
+    public async Task Pull_request_webhook_is_gated_and_watch_listed()
+    {
+        var client = NewClient();
+        await LoginAsync(client);
+        client.DefaultRequestHeaders.Add("X-DevAgent-Admin", "1");
+
+        // The webhook row is seeded; put a secret on it.
+        var set = await client.PostAsJsonAsync("/admin/api/webhooks",
+            new { key = "pull-request-opened", enabled = true, sharedSecret = "pr-secret" });
+        Assert.Equal(HttpStatusCode.OK, set.StatusCode);
+
+        var anonymous = NewClient();
+        var noSecret = await anonymous.PostAsJsonAsync("/hub/webhooks/pull-request-opened",
+            new { repositoryKey = "unwatched", sourceBranch = "feature/x", prNumber = 1 });
+        Assert.Equal(HttpStatusCode.Unauthorized, noSecret.StatusCode);
+
+        anonymous.DefaultRequestHeaders.Add("X-DevAgent-Secret", "pr-secret");
+        var withSecret = await anonymous.PostAsJsonAsync("/hub/webhooks/pull-request-opened",
+            new { repositoryKey = "unwatched", sourceBranch = "feature/x", prNumber = 1 });
+        Assert.Equal(HttpStatusCode.OK, withSecret.StatusCode);
+
+        // An unwatched repository is refused by the agent (status 7 = Rejected).
+        var body = await withSecret.Content.ReadAsStringAsync();
+        Assert.Contains("not watched", body);
+    }
+
+    [Fact]
     public async Task Agent_settings_and_audit_window_are_readable()
     {
         var client = NewClient();

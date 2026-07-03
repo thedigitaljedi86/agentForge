@@ -160,6 +160,75 @@ app.MapPost("/runner/jobs/dotnet-upgrade", async (
         : Results.Ok(result);
 });
 
+// SECURITY: PipelineFix job-start. Repository by KEY; the failing branch is
+// validated as a conservative ref name; the CI log is context only (truncated
+// server-side) and never becomes a command.
+app.MapPost("/runner/jobs/pipeline-fix", async (
+    StartPipelineFixRunnerRequest body,
+    RunnerJobApplicationService service,
+    CancellationToken cancellationToken) =>
+{
+    var request = new PipelineFixJobRequest
+    {
+        JobId = body.JobId ?? Guid.NewGuid().ToString("N"),
+        RepositoryKey = body.RepositoryKey,
+        Branch = body.Branch,
+        FailureContext = body.FailureContext ?? string.Empty,
+        RequestedBy = body.RequestedBy ?? "hub",
+    };
+
+    var result = await service.StartPipelineFixAsync(request, cancellationToken);
+
+    return result.Status == AgentJobStatus.Rejected
+        ? Results.BadRequest(result)
+        : Results.Ok(result);
+});
+
+// SECURITY: DocUpdate job-start. Only a repository key — the docs agent's
+// write scope (docs/ + README.md) is enforced inside the worker by policy.
+app.MapPost("/runner/jobs/doc-update", async (
+    StartDocUpdateRunnerRequest body,
+    RunnerJobApplicationService service,
+    CancellationToken cancellationToken) =>
+{
+    var request = new DocUpdateJobRequest
+    {
+        JobId = body.JobId ?? Guid.NewGuid().ToString("N"),
+        RepositoryKey = body.RepositoryKey,
+        RequestedBy = body.RequestedBy ?? "hub",
+    };
+
+    var result = await service.StartDocUpdateAsync(request, cancellationToken);
+
+    return result.Status == AgentJobStatus.Rejected
+        ? Results.BadRequest(result)
+        : Results.Ok(result);
+});
+
+// SECURITY: CodeReview job-start. Repository by KEY; the PR's source branch is
+// validated as a conservative ref name. The review worker is read-only and can
+// only emit a PR comment.
+app.MapPost("/runner/jobs/code-review", async (
+    StartCodeReviewRunnerRequest body,
+    RunnerJobApplicationService service,
+    CancellationToken cancellationToken) =>
+{
+    var request = new CodeReviewJobRequest
+    {
+        JobId = body.JobId ?? Guid.NewGuid().ToString("N"),
+        RepositoryKey = body.RepositoryKey,
+        SourceBranch = body.SourceBranch,
+        PrNumber = body.PrNumber,
+        RequestedBy = body.RequestedBy ?? "hub",
+    };
+
+    var result = await service.StartCodeReviewAsync(request, cancellationToken);
+
+    return result.Status == AgentJobStatus.Rejected
+        ? Results.BadRequest(result)
+        : Results.Ok(result);
+});
+
 app.Run();
 
 /// <summary>
@@ -186,6 +255,34 @@ public sealed record StartDotNetUpgradeRunnerRequest
     public required string RepositoryKey { get; init; }
     public required string TargetFramework { get; init; }
     public bool OnlyUpgrade { get; init; } = true;
+    public string? RequestedBy { get; init; }
+}
+
+/// <summary>API body for a PipelineFix job: key + validated branch + log context.</summary>
+public sealed record StartPipelineFixRunnerRequest
+{
+    public string? JobId { get; init; }
+    public required string RepositoryKey { get; init; }
+    public required string Branch { get; init; }
+    public string? FailureContext { get; init; }
+    public string? RequestedBy { get; init; }
+}
+
+/// <summary>API body for a DocUpdate job: only a repository key.</summary>
+public sealed record StartDocUpdateRunnerRequest
+{
+    public string? JobId { get; init; }
+    public required string RepositoryKey { get; init; }
+    public string? RequestedBy { get; init; }
+}
+
+/// <summary>API body for a CodeReview job: key + validated source branch + PR number.</summary>
+public sealed record StartCodeReviewRunnerRequest
+{
+    public string? JobId { get; init; }
+    public required string RepositoryKey { get; init; }
+    public required string SourceBranch { get; init; }
+    public int? PrNumber { get; init; }
     public string? RequestedBy { get; init; }
 }
 

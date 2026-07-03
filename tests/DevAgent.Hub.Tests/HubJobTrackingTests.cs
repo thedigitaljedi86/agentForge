@@ -53,6 +53,15 @@ public class HubDependencyUpdateTriggerTests
 
         public Task<AgentJobResult> StartDotNetUpgradeAsync(DotNetUpgradeJobRequest request, CancellationToken ct = default)
             => Task.FromResult(new AgentJobResult { JobId = request.JobId, Status = AgentJobStatus.Succeeded });
+
+        public Task<AgentJobResult> StartPipelineFixAsync(PipelineFixJobRequest request, CancellationToken ct = default)
+            => Task.FromResult(new AgentJobResult { JobId = request.JobId, Status = AgentJobStatus.Succeeded });
+
+        public Task<AgentJobResult> StartDocUpdateAsync(DocUpdateJobRequest request, CancellationToken ct = default)
+            => Task.FromResult(new AgentJobResult { JobId = request.JobId, Status = AgentJobStatus.Succeeded });
+
+        public Task<AgentJobResult> StartCodeReviewAsync(CodeReviewJobRequest request, CancellationToken ct = default)
+            => Task.FromResult(new AgentJobResult { JobId = request.JobId, Status = AgentJobStatus.Succeeded });
     }
 
     [Fact]

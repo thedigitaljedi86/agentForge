@@ -245,7 +245,7 @@ tr:hover td{background:var(--paper-raise)}
       </table></div>
       <form class="form-row" id="jti-form">
         <label class="f">Job type
-          <select id="jti-type"><option>NuGetUpdate</option><option>DotNetUpgrade</option></select>
+          <select id="jti-type"><option>NuGetUpdate</option><option>DotNetUpgrade</option><option>PipelineFix</option><option>DocUpdate</option><option>CodeReview</option></select>
         </label>
         <label class="f">Image<input type="text" id="jti-image" required></label>
         <button class="btn btn-small" type="submit">Set</button>
@@ -257,6 +257,23 @@ tr:hover td{background:var(--paper-raise)}
       <form class="form-row" id="tfm-form">
         <label class="f">Framework<input type="text" id="tfm-value" placeholder="net10.0" required></label>
         <button class="btn btn-small" type="submit">Add</button>
+      </form>
+
+      <h2>CI connections</h2>
+      <p class="hint">Where PipelineDoctor looks for failed pipelines, per repository key — GitHub Actions, GitLab CI or Azure DevOps Pipelines. The token field is the <em>name</em> of an environment variable on the Hub host; the console never sees or stores a token value.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Repository</th><th>Provider</th><th>Base URL</th><th>Project path</th><th>Token env var</th><th></th></tr></thead>
+        <tbody id="ci-rows"></tbody>
+      </table></div>
+      <form class="form-row" id="ci-form">
+        <label class="f">Repository key<input type="text" id="ci-repo" placeholder="payments-api" required></label>
+        <label class="f">Provider
+          <select id="ci-provider"><option>GitHubActions</option><option>GitLabCi</option><option>AzureDevOpsPipelines</option></select>
+        </label>
+        <label class="f">Base URL<input type="text" id="ci-baseurl" placeholder="https://api.github.com" required></label>
+        <label class="f">Project path<input type="text" id="ci-project" placeholder="owner/repo" required></label>
+        <label class="f">Token env var<input type="text" id="ci-tokenenv" placeholder="DEVAGENT_CI_TOKEN"></label>
+        <button class="btn btn-small" type="submit">Add / update</button>
       </form>
 
       <h2>Package usage map</h2>
@@ -483,9 +500,10 @@ tr:hover td{background:var(--paper-raise)}
 
   // ---------- allowlists ----------
   async function loadAllowlists() {
-    const [repos, packages, images, jti, tfms, usage] = await Promise.all([
+    const [repos, packages, images, jti, tfms, usage, ciConns] = await Promise.all([
       api('/admin/api/repositories'), api('/admin/api/packages'), api('/admin/api/images'),
       api('/admin/api/jobtype-images'), api('/admin/api/frameworks'), api('/admin/api/package-usage'),
+      api('/admin/api/ci-connections'),
     ]);
 
     document.getElementById('repo-rows').innerHTML = repos.length === 0
@@ -507,6 +525,13 @@ tr:hover td{background:var(--paper-raise)}
       : usage.map(u => `<tr><td class="mono">${esc(u.repositoryKey)}</td><td class="mono">${esc(u.packageId)}</td>
           <td class="mono">${esc(u.currentVersion || '?')}</td>
           <td><button class="btn-danger" data-del-usage="${esc(u.repositoryKey)}|${esc(u.packageId)}">remove</button></td></tr>`).join('');
+
+    document.getElementById('ci-rows').innerHTML = ciConns.length === 0
+      ? '<tr><td colspan="6" class="empty">No CI connections — PipelineDoctor has nothing to watch.</td></tr>'
+      : ciConns.map(c => `<tr><td class="mono">${esc(c.repositoryKey)}</td><td class="mono">${esc(c.provider)}</td>
+          <td class="mono">${esc(c.baseUrl)}</td><td class="mono">${esc(c.projectPath)}</td>
+          <td class="mono">${esc(c.tokenEnvVar || '—')}</td>
+          <td><button class="btn-danger" data-del-ci="${esc(c.repositoryKey)}">remove</button></td></tr>`).join('');
   }
 
   function chipList(id, values, delAttr) {
@@ -541,6 +566,16 @@ tr:hover td{background:var(--paper-raise)}
       currentVersion: document.getElementById('usage-ver').value || null,
     }) }).then(() => { toast('Usage saved'); loadAllowlists(); }).catch(fail);
   });
+  document.getElementById('ci-form').addEventListener('submit', e => {
+    e.preventDefault();
+    api('/admin/api/ci-connections', { method: 'POST', body: JSON.stringify({
+      repositoryKey: document.getElementById('ci-repo').value,
+      provider: document.getElementById('ci-provider').value,
+      baseUrl: document.getElementById('ci-baseurl').value,
+      projectPath: document.getElementById('ci-project').value,
+      tokenEnvVar: document.getElementById('ci-tokenenv').value || null,
+    }) }).then(() => { toast('CI connection saved'); loadAllowlists(); }).catch(fail);
+  });
 
   function bindSimple(formId, inputId, path) {
     document.getElementById(formId).addEventListener('submit', e => {
@@ -572,6 +607,7 @@ tr:hover td{background:var(--paper-raise)}
       }
       return;
     }
+    if (t.hasAttribute('data-del-ci')) return void del('data-del-ci', v => '/admin/api/ci-connections/' + encodeURIComponent(v), loadAllowlists);
     if (t.hasAttribute('data-del-mcp')) return void del('data-del-mcp', v => '/admin/api/mcp-servers/' + encodeURIComponent(v), loadMcp);
     if (t.hasAttribute('data-del-skill')) return void del('data-del-skill', v => '/admin/api/skills/' + encodeURIComponent(v), loadSkills);
   });
