@@ -47,7 +47,7 @@ public sealed class ClaudeLlmClient : ILlmClient
             ["model"] = _options.ResolveModel(),
             ["max_tokens"] = _options.MaxOutputTokens,
             ["system"] = LlmConversation.SystemPrompt(task),
-            ["tools"] = LlmToolCatalog.AnthropicTools(),
+            ["tools"] = LlmToolCatalog.AnthropicTools(_options.AdditionalTools),
             ["messages"] = messages,
         };
 

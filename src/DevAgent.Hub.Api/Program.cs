@@ -2,16 +2,34 @@ using Agents.DependencyPilot;
 using Agents.DotNetUpgrader;
 using DevAgent.Audit;
 using DevAgent.Bridge.NuGet;
+using DevAgent.Hub.Api.Admin;
 using DevAgent.Hub.Api.Application;
 using DevAgent.Hub.Api.Jobs;
+using DevAgent.Store;
 using Hangfire;
 using Hangfire.MemoryStorage;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Audit + job status tracking (powers the dashboard) ---
-builder.Services.AddSingleton<IAuditLog, ConsoleAuditLog>();
+// --- Audit + job status tracking (powers the dashboards) ---
+// Console = durable-ish log stream; ring buffer = the admin console's live
+// audit window. Both receive every event.
+builder.Services.AddSingleton<InMemoryRingAuditLog>();
+builder.Services.AddSingleton<IAuditLog>(sp =>
+    new CompositeAuditLog(new ConsoleAuditLog(), sp.GetRequiredService<InMemoryRingAuditLog>()));
 builder.Services.AddSingleton<IJobTracker, InMemoryJobTracker>();
+
+// --- Admin store (SQLite) + admin console auth ---
+// With ConnectionStrings:DevAgent set, the store is the source of truth for
+// allowlists, agent settings, MCP servers, skills and webhooks — and the
+// admin console at /admin (cookie login) is how it changes.
+var storeEnabled = builder.Services.TryAddDevAgentStore(builder.Configuration);
+if (storeEnabled)
+{
+    builder.Services.AddAdminAuth();
+    builder.Services.AddStoreBackedAgentOptions();
+}
 
 // --- Runner client (Hub -> Runner over HTTP) ---
 var runnerBaseUrl = builder.Configuration["Runner:BaseUrl"] ?? "http://localhost:5081";
@@ -41,10 +59,20 @@ builder.Services.AddHttpClient<INuGetPackageProvider, HttpNuGetPackageProvider>(
 builder.Services.AddSingleton(
     builder.Configuration.GetSection(PackageUsageMapOptions.SectionName).Get<PackageUsageMapOptions>()
         ?? new PackageUsageMapOptions());
-builder.Services.AddSingleton<IPackageUsageScanner, ConfiguredPackageUsageScanner>();
+if (!storeEnabled)
+{
+    builder.Services.AddSingleton<IPackageUsageScanner, ConfiguredPackageUsageScanner>();
+}
 
 builder.Services.AddScoped<IDependencyUpdateTrigger, HubDependencyUpdateTrigger>();
 builder.Services.AddScoped<DependencyPilotService>();
+
+// Store-backed agent options must be registered AFTER the config bindings
+// above so they take precedence when the store is enabled.
+if (storeEnabled)
+{
+    builder.Services.AddStoreBackedAgentOptions();
+}
 
 // --- Hangfire (in-memory for the first milestone) ---
 builder.Services.AddHangfire(cfg => cfg
@@ -63,6 +91,16 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+// Create/seed the store and the admin user before anything reads them.
+if (storeEnabled)
+{
+    using var scope = app.Services.CreateScope();
+    var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<DevAgentDbContext>>();
+    await using var db = await dbFactory.CreateDbContextAsync();
+    await StoreSetup.InitializeAsync(db, app.Configuration);
+    await AdminAuth.EnsureAdminUserAsync(db, app.Configuration);
+}
+
 // SECURITY: only expose Swagger in Development. The launch profile sets the
 // Development environment, so `dotnet run` shows it at /swagger.
 if (app.Environment.IsDevelopment())
@@ -71,9 +109,18 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Status dashboard: wwwroot/index.html served at "/".
+// Status dashboard: wwwroot/index.html served at "/";
+// admin console: wwwroot/admin/index.html served at /admin/.
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+if (storeEnabled)
+{
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.MapAdminAuthEndpoints();
+    app.MapAdminEndpoints();
+}
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "DevAgent.Hub" }));
 
@@ -92,8 +139,11 @@ app.MapGet("/jobs", (IJobTracker tracker) =>
         j.UpdatedAtUtc,
     })));
 
-// Hangfire dashboard (local only — secure properly before exposing).
-app.UseHangfireDashboard("/hangfire");
+// Hangfire dashboard: admin login required outside Development.
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new HangfireDashboardAuthFilter(app.Environment.IsDevelopment()) },
+});
 
 // DependencyPilot: check watched packages for new versions every hour.
 RecurringJob.AddOrUpdate<PackageUpdateCheckJob>(
@@ -151,9 +201,31 @@ app.MapPost("/hub/dotnetupgrader/upgrade", async (
 // name a repository, an image or a command.
 app.MapPost("/hub/webhooks/nuget-package-published", async (
     PackagePublishedWebhook body,
+    HttpContext http,
     DependencyPilotService dependencyPilot,
+    IServiceProvider services,
     CancellationToken cancellationToken) =>
 {
+    // Admin-managed webhook config: the hook can be disabled outright, and a
+    // shared secret (X-DevAgent-Secret) can be required.
+    var dbFactory = services.GetService<IDbContextFactory<DevAgentDbContext>>();
+    if (dbFactory is not null)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var hook = await db.Webhooks.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.Key == "nuget-package-published", cancellationToken);
+        if (hook is { Enabled: false })
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        if (!string.IsNullOrEmpty(hook?.SharedSecret)
+            && http.Request.Headers["X-DevAgent-Secret"].ToString() != hook.SharedSecret)
+        {
+            return Results.Unauthorized();
+        }
+    }
+
     var results = await dependencyPilot.HandlePackagePublishedAsync(
         body.PackageId, body.Version, cancellationToken);
 

@@ -5,6 +5,7 @@ using DevAgent.Contracts.Jobs;
 using DevAgent.Contracts.Sandbox;
 using DevAgent.Contracts.Validation;
 using DevAgent.Guard.Policies;
+using DevAgent.Runner.Api.Mcp;
 using DevAgent.Runner.Api.Sandbox;
 
 /// <summary>
@@ -21,24 +22,29 @@ using DevAgent.Runner.Api.Sandbox;
 /// </summary>
 public sealed class RunnerJobApplicationService
 {
-    private readonly GuardPolicySet _policies;
+    private readonly IGuardPolicySource _policySource;
     private readonly ISandboxJobRunner _sandboxRunner;
     private readonly IAuditLog _audit;
+    private readonly ISandboxJobEnricher _enricher;
 
     public RunnerJobApplicationService(
-        GuardPolicySet policies,
+        IGuardPolicySource policySource,
         ISandboxJobRunner sandboxRunner,
-        IAuditLog audit)
+        IAuditLog audit,
+        ISandboxJobEnricher? enricher = null)
     {
-        _policies = policies;
+        _policySource = policySource;
         _sandboxRunner = sandboxRunner;
         _audit = audit;
+        _enricher = enricher ?? new NullSandboxJobEnricher();
     }
 
     public async Task<AgentJobResult> StartNuGetUpdateAsync(
         NuGetUpdateJobRequest request,
         CancellationToken cancellationToken = default)
     {
+        var _policies = await _policySource.GetAsync(cancellationToken);
+
         // 1. Job type allowlist.
         var jobTypeCheck = _policies.JobTypes.Validate(request.JobType);
         if (!jobTypeCheck.IsValid)
@@ -94,6 +100,10 @@ public sealed class RunnerJobApplicationService
             Reason = $"All allowlists passed for {request.RepositoryKey}/{request.PackageId}@{request.TargetVersion}.",
         }, cancellationToken);
 
+        // Attach the requesting agent's capabilities (LLM pin, MCP grants,
+        // skills) — resolved from the admin store, never from the caller.
+        sandboxRequest = await _enricher.EnrichAsync(sandboxRequest, request.RequestedBy, cancellationToken);
+
         var sandboxResult = await _sandboxRunner.RunAsync(sandboxRequest, cancellationToken);
 
         return new AgentJobResult
@@ -109,6 +119,8 @@ public sealed class RunnerJobApplicationService
         DotNetUpgradeJobRequest request,
         CancellationToken cancellationToken = default)
     {
+        var _policies = await _policySource.GetAsync(cancellationToken);
+
         // 1. Job type allowlist.
         var jobTypeCheck = _policies.JobTypes.Validate(request.JobType);
         if (!jobTypeCheck.IsValid)
@@ -161,6 +173,10 @@ public sealed class RunnerJobApplicationService
             Allowed = true,
             Reason = $"All allowlists passed for {request.RepositoryKey} -> {request.TargetFramework}.",
         }, cancellationToken);
+
+        // Attach the requesting agent's capabilities (LLM pin, MCP grants,
+        // skills) — resolved from the admin store, never from the caller.
+        sandboxRequest = await _enricher.EnrichAsync(sandboxRequest, request.RequestedBy, cancellationToken);
 
         var sandboxResult = await _sandboxRunner.RunAsync(sandboxRequest, cancellationToken);
 

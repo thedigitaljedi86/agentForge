@@ -23,6 +23,8 @@
     <ProjectReference Include="..\Agents.DotNetUpgrader\Agents.DotNetUpgrader.csproj" />
     <ProjectReference Include="..\Agents.DependencyPilot\Agents.DependencyPilot.csproj" />
     <ProjectReference Include="..\DevAgent.Bridge.NuGet\DevAgent.Bridge.NuGet.csproj" />
+    <ProjectReference Include="..\DevAgent.Store\DevAgent.Store.csproj" />
+    <ProjectReference Include="..\DevAgent.Bridge.Llm\DevAgent.Bridge.Llm.csproj" />
   </ItemGroup>
 
 </Project>

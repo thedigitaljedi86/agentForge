@@ -8,6 +8,14 @@ namespace DevAgent.Bridge.Llm;
 /// SECURITY: API keys are read from the environment by default and never from
 /// the caller-facing job surface. The model and provider are operator config.
 /// </summary>
+/// <summary>
+/// A provider-neutral description of one ADDITIONAL tool exposed to the model
+/// beyond the built-in seven — in practice: validated MCP tool grants. The
+/// name is the wire name (mcp__{serverKey}__{tool}); the schema is the MCP
+/// server's own inputSchema, passed through untouched.
+/// </summary>
+public sealed record LlmToolDescriptor(string Name, string Description, string InputSchemaJson);
+
 public sealed class LlmClientOptions
 {
     public const string SectionName = "Llm";
@@ -40,6 +48,12 @@ public sealed class LlmClientOptions
 
     /// <summary>Hard cap on tokens the model may emit per decision.</summary>
     public int MaxOutputTokens { get; set; } = 4096;
+
+    /// <summary>
+    /// Extra tools (validated MCP grants) appended to the built-in catalog for
+    /// this client. Set by the composition root — never by an API caller.
+    /// </summary>
+    public IReadOnlyList<LlmToolDescriptor> AdditionalTools { get; set; } = Array.Empty<LlmToolDescriptor>();
 
     /// <summary>The model to use, falling back to the provider default.</summary>
     public string ResolveModel() =>

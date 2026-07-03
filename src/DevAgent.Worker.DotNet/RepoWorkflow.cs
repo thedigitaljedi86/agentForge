@@ -29,17 +29,20 @@ public sealed class RepoWorkflow
     private readonly WorkspacePathValidator _pathValidator;
     private readonly IGitProvider _gitProvider;
     private readonly Func<string, ICodingAgent>? _buildRepairAgentFactory;
+    private readonly string? _skillInstructions;
 
     public RepoWorkflow(
         SafeCommandRunner commandRunner,
         WorkspacePathValidator pathValidator,
         IGitProvider gitProvider,
-        Func<string, ICodingAgent>? buildRepairAgentFactory = null)
+        Func<string, ICodingAgent>? buildRepairAgentFactory = null,
+        string? skillInstructions = null)
     {
         _commandRunner = commandRunner;
         _pathValidator = pathValidator;
         _gitProvider = gitProvider;
         _buildRepairAgentFactory = buildRepairAgentFactory;
+        _skillInstructions = skillInstructions;
     }
 
     public async Task<SandboxJobResult> RunAsync(
@@ -154,6 +157,7 @@ public sealed class RepoWorkflow
                 Goal = "Fix the failing build caused by the dependency/framework change. Do not change behaviour beyond what is needed to compile and pass tests.",
                 WorkspaceRoot = repoPath,
                 FailureContext = $"restore stderr:\n{restore.StandardError}\n\nbuild stderr:\n{build.StandardError}",
+                SkillInstructions = _skillInstructions,
             };
 
             var repair = await agent.RunAsync(task, cancellationToken);

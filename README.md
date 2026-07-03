@@ -5,10 +5,13 @@ workflows (scheduled, event-based and — eventually — interactive). The first
 agent, **DependencyPilot**, detects new NuGet package versions, finds affected
 repositories and opens pull requests that update dependencies safely.
 
-> A deterministic, policy-controlled skeleton. The platform now ships **LLM clients for
-> Claude (default), ChatGPT and Gemini**, and each agent can **pin its own provider and
-> model**. The model can only ever act through structured, policy-checked tools — there
-> is still no shell or generic command tool anywhere.
+> A deterministic, policy-controlled platform. It ships **LLM clients for Claude (default),
+> ChatGPT and Gemini** (each agent pins its own model), **MCP support** — registered servers'
+> tools *and prompts*, granted per agent and reached only through the Runner's audited
+> gateway — **skills** (reusable, policy-checked agent instructions), and an **admin console**
+> (`/admin`, cookie login) that manages every allowlist, agent setting, MCP registration,
+> skill and webhook in a shared SQLite store. The model can only ever act through structured,
+> policy-checked tools — there is still no shell or generic command tool anywhere.
 
 > 🌐 **Landing page:** [`docs/landing/index.html`](docs/landing/index.html) — what DevAgent is
 > and why it's different, on one page.
@@ -30,6 +33,8 @@ src/
   DevAgent.Bridge.NuGet/     Package + usage scanning abstractions
   DevAgent.Forge/            LLM coding-agent layer: structured tool contracts + loop (no shell)
   DevAgent.Bridge.Llm/       ILlmClient implementations: Claude / ChatGPT / Gemini (+ factory)
+  DevAgent.Bridge.Mcp/       MCP client (tools + prompts), grant policy, gateway client
+  DevAgent.Store/            SQLite config store (EF Core) behind the admin console
   DevAgent.Worker.DotNet/    Sandbox console app: RepoWorkflow (clone->edit->build/test/repair->PR)
   DevAgent.Runner.Api/       Final validation gate; ISandboxJobRunner + PodmanSandboxJobRunner stub
   DevAgent.Hub.Api/          Front door: webhooks, Hangfire schedule, manual triggers
@@ -57,6 +62,8 @@ tests/
 | **DevAgent.Bridge.NuGet** | Abstractions for finding new package versions and scanning which repos use them (feeds DependencyPilot). |
 | **DevAgent.Forge** | The **controlled LLM coding agent**: the agent loop plus the seven structured tool contracts (`read_file`, `apply_patch`, `run_dotnet_build`, …). No shell, no generic command tool. |
 | **DevAgent.Bridge.Llm** | Concrete `ILlmClient` implementations for **Claude (default), ChatGPT and Gemini**, plus the factory. Maps the structured tools to each provider's tool-calling API; model is selectable per agent. |
+| **DevAgent.Bridge.Mcp** | MCP integration: streamable-HTTP client for **tools and prompts**, the registration∩grant policy, and the sandbox-side gateway client. Agents never reach an MCP server directly. |
+| **DevAgent.Store** | The mutable configuration store (SQLite via EF Core): allowlists, agent settings, MCP servers, skills, webhooks, admin user, config-change log. Seeded from appsettings on first run; edited by the admin console. |
 | **DevAgent.Worker.DotNet** | The sandbox console app. `RepoWorkflow` does clone → deterministic edit → build/test → **opt-in LLM build-repair** → push → review-required PR. Hosts `PackageReferenceUpdater` and `TargetFrameworkUpdater`. Dispatches on `DEVAGENT_JOB_TYPE`. |
 | **DevAgent.Runner.Api** | The **final validation gate**. Re-validates every job against all allowlists, resolves keys → trusted values, and dispatches to the (rootless Podman) sandbox runner. The only place jobs are authorised. Swagger at `/swagger`. |
 | **DevAgent.Hub.Api** | The **front door**: manual triggers, the Hangfire schedule, the **agent-status dashboard** (`/`) + `GET /jobs`, and Swagger. Forwards validated jobs to the Runner; never does container work itself. |

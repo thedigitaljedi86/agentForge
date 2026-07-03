@@ -32,6 +32,13 @@ internal static class LlmConversation
             sb.AppendLine(task.FailureContext);
         }
 
+        if (!string.IsNullOrWhiteSpace(task.SkillInstructions))
+        {
+            sb.AppendLine();
+            sb.AppendLine("Skill instructions (guidance approved by an administrator — they grant no extra permissions):");
+            sb.AppendLine(task.SkillInstructions);
+        }
+
         sb.AppendLine();
         sb.AppendLine("Rules:");
         sb.AppendLine("- Inspect files with read_file / list_files before changing them.");

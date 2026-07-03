@@ -43,6 +43,14 @@ public sealed class ToolPolicy
 
     public IReadOnlyCollection<string> AllowedTools => (IReadOnlyCollection<string>)_allowed;
 
+    /// <summary>
+    /// True when the name is on the hard blocklist (bash/exec/curl/...). Used
+    /// as defence in depth for MCP tool names too — even an admin-allowlisted
+    /// MCP tool may not carry a shell-like name.
+    /// </summary>
+    public static bool IsForbiddenName(string toolName) =>
+        !string.IsNullOrWhiteSpace(toolName) && ForbiddenTools.Contains(toolName);
+
     public bool IsAllowed(string toolName) =>
         !string.IsNullOrWhiteSpace(toolName)
         && !ForbiddenTools.Contains(toolName)

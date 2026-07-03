@@ -48,7 +48,7 @@ public sealed class OpenAiLlmClient : ILlmClient
         {
             ["model"] = _options.ResolveModel(),
             ["max_tokens"] = _options.MaxOutputTokens,
-            ["tools"] = LlmToolCatalog.OpenAiTools(),
+            ["tools"] = LlmToolCatalog.OpenAiTools(_options.AdditionalTools),
             ["tool_choice"] = "auto",
             ["messages"] = messages,
         };

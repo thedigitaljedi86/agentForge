@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Bridge.Mcp connects agents to Model Context Protocol servers —
+    under the platform's rules. Servers are registered by administrators and
+    referenced BY KEY; agents hold explicit per-server tool/prompt grants; the
+    sandbox never talks to an MCP server directly (only to the Runner's
+    gateway), and server credentials never enter the sandbox.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Bridge.Mcp</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -43,7 +43,7 @@ public class RunnerDotNetUpgradeTests
     private static (RunnerJobApplicationService service, RecordingSandboxRunner runner) NewService(GuardPolicySet policies)
     {
         var runner = new RecordingSandboxRunner();
-        return (new RunnerJobApplicationService(policies, runner, new ConsoleAuditLog()), runner);
+        return (new RunnerJobApplicationService(new StaticGuardPolicySource(policies), runner, new ConsoleAuditLog()), runner);
     }
 
     private static DotNetUpgradeJobRequest ValidRequest() => new()

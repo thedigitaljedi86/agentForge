@@ -1,6 +1,8 @@
+using System.Text.Json;
 using DevAgent.Audit;
 using DevAgent.Bridge.Git;
 using DevAgent.Bridge.Llm;
+using DevAgent.Bridge.Mcp;
 using DevAgent.Forge;
 using DevAgent.Guard.Execution;
 using DevAgent.Guard.Paths;
@@ -34,7 +36,7 @@ try
     {
         var settings = DotNetUpgradeWorkerSettings.FromEnvironment(read);
         var (commandRunner, pathValidator) = BuildGuards(settings.WorkspaceRoot);
-        var repair = BuildRepairFactory(settings.LlmProvider, settings.LlmModel, settings.JobId, audit, http);
+        var repair = BuildRepairFactory(settings.LlmProvider, settings.LlmModel, settings.JobId, audit, http, read);
 
         var worker = new DotNetUpgradeWorker(commandRunner, pathValidator, new TargetFrameworkUpdater(settings.OnlyUpgrade), gitProvider, repair);
         var result = await worker.RunAsync(settings);
@@ -45,7 +47,7 @@ try
     {
         var settings = WorkerJobSettings.FromEnvironment(read);
         var (commandRunner, pathValidator) = BuildGuards(settings.WorkspaceRoot);
-        var repair = BuildRepairFactory(settings.LlmProvider, settings.LlmModel, settings.JobId, audit, http);
+        var repair = BuildRepairFactory(settings.LlmProvider, settings.LlmModel, settings.JobId, audit, http, read);
 
         var worker = new NuGetUpdateWorker(commandRunner, pathValidator, new PackageReferenceUpdater(settings.OnlyUpgrade), gitProvider, repair);
         var result = await worker.RunAsync(settings);
@@ -77,7 +79,11 @@ static (SafeCommandRunner, WorkspacePathValidator) BuildGuards(string workspaceR
 // Build the opt-in Forge build-repair agent factory. Returns null (repair
 // disabled) when no/unknown LLM provider is configured. The agent is rooted at
 // the cloned repo path supplied by the workflow, so it is confined to the repo.
-static Func<string, ICodingAgent>? BuildRepairFactory(string? providerName, string? model, string jobId, IAuditLog audit, HttpClient http)
+//
+// MCP: when the Runner supplied a gateway + per-job token + granted tool
+// descriptors, those tools are exposed to the model (with the servers' own
+// schemas) and executed through the gateway — which re-validates every call.
+static Func<string, ICodingAgent>? BuildRepairFactory(string? providerName, string? model, string jobId, IAuditLog audit, HttpClient http, Func<string, string?> read)
 {
     if (!Enum.TryParse<LlmProvider>(providerName, ignoreCase: true, out var provider))
     {
@@ -85,6 +91,45 @@ static Func<string, ICodingAgent>? BuildRepairFactory(string? providerName, stri
     }
 
     var options = new LlmClientOptions { Provider = provider, Model = model };
+
+    IMcpToolExecutor? mcpExecutor = null;
+    var gatewayUrl = read("DEVAGENT_MCP_GATEWAY");
+    var gatewayToken = read("DEVAGENT_MCP_TOKEN");
+    if (!string.IsNullOrEmpty(gatewayUrl) && !string.IsNullOrEmpty(gatewayToken))
+    {
+        options.AdditionalTools = ParseMcpTools(read("DEVAGENT_MCP_TOOLS"));
+        mcpExecutor = new McpGatewayToolExecutor(new GatewayMcpClient(http, gatewayUrl!, gatewayToken!));
+    }
+
     var llm = LlmClientFactory.Create(options, http);
-    return repoPath => CodingAgentFactory.Create(repoPath, llm, audit, jobId);
+    return repoPath => CodingAgentFactory.Create(repoPath, llm, audit, jobId, mcpExecutor: mcpExecutor);
 }
+
+// Parse the Runner-provided MCP tool descriptors into LLM tool schemas. The
+// wire name is namespaced (mcp__{serverKey}__{tool}) so it can never collide
+// with — or impersonate — a builtin tool.
+static IReadOnlyList<LlmToolDescriptor> ParseMcpTools(string? json)
+{
+    if (string.IsNullOrWhiteSpace(json))
+    {
+        return Array.Empty<LlmToolDescriptor>();
+    }
+
+    try
+    {
+        var docs = JsonSerializer.Deserialize<List<McpToolEnv>>(json!, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        return (docs ?? new List<McpToolEnv>())
+            .Where(d => !string.IsNullOrWhiteSpace(d.ServerKey) && !string.IsNullOrWhiteSpace(d.Name))
+            .Select(d => new LlmToolDescriptor(
+                $"mcp__{d.ServerKey}__{d.Name}",
+                d.Description ?? string.Empty,
+                string.IsNullOrWhiteSpace(d.InputSchemaJson) ? """{"type":"object"}""" : d.InputSchemaJson!))
+            .ToList();
+    }
+    catch (JsonException)
+    {
+        return Array.Empty<LlmToolDescriptor>();
+    }
+}
+
+internal sealed record McpToolEnv(string? ServerKey, string? Name, string? Description, string? InputSchemaJson);

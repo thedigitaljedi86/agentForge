@@ -20,6 +20,7 @@ public sealed class CodingAgentToolHandler : IToolCallHandler
     private readonly DotNetCommandTools _commands;
     private readonly IAuditLog _audit;
     private readonly string _jobId;
+    private readonly IMcpToolExecutor? _mcp;
 
     public CodingAgentToolHandler(
         ToolPolicy toolPolicy,
@@ -27,8 +28,10 @@ public sealed class CodingAgentToolHandler : IToolCallHandler
         PatchApplicationService patches,
         DotNetCommandTools commands,
         IAuditLog audit,
-        string jobId)
+        string jobId,
+        IMcpToolExecutor? mcp = null)
     {
+        _mcp = mcp;
         _toolPolicy = toolPolicy;
         _files = files;
         _patches = patches;
@@ -39,6 +42,17 @@ public sealed class CodingAgentToolHandler : IToolCallHandler
 
     public async Task<ToolCallResult> HandleAsync(ToolCallRequest request, CancellationToken cancellationToken = default)
     {
+        // MCP calls have their own gate (registry ∩ agent grants, enforced by
+        // the executor, which fails closed when absent).
+        if (request is McpToolCall mcpCall)
+        {
+            var mcpResult = _mcp is null
+                ? ToolCallResult.Denied(mcpCall, "No MCP access is configured for this job.")
+                : await _mcp.ExecuteAsync(mcpCall, cancellationToken);
+            await AuditAsync(request, mcpResult, cancellationToken);
+            return mcpResult;
+        }
+
         // Gate 1: tool-name allowlist (defence in depth on top of typed calls).
         var nameCheck = _toolPolicy.Validate(request.ToolName);
         if (!nameCheck.IsValid)
@@ -101,6 +115,7 @@ public sealed class CodingAgentToolHandler : IToolCallHandler
         RunBuildToolCall c => $"project='{c.ProjectOrSolution}'",
         RunTestToolCall c => $"project='{c.ProjectOrSolution}'",
         GitStatusToolCall => "(no args)",
+        McpToolCall c => $"server='{c.ServerKey}' tool='{c.Tool}' argBytes={c.ArgumentsJson.Length}",
         _ => "(unknown)",
     };
 }

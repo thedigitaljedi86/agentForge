@@ -76,7 +76,7 @@ public sealed class GeminiLlmClient : ILlmClient
             {
                 ["parts"] = new JsonArray { new JsonObject { ["text"] = LlmConversation.SystemPrompt(task) } },
             },
-            ["tools"] = LlmToolCatalog.GeminiTools(),
+            ["tools"] = LlmToolCatalog.GeminiTools(_options.AdditionalTools),
             ["contents"] = contents,
         };
 
