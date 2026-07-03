@@ -613,52 +613,89 @@ tr:hover td{background:var(--paper-raise)}
   });
 
   // ---------- agents ----------
+  // Each agent only exposes the settings it actually uses — no watch-package
+  // field on the docs agent, no target-framework on the reviewer, and so on.
+  // Fields not shown are preserved untouched on save.
+  const AGENT_META = {
+    DependencyPilot: { blurb: 'Watches NuGet packages and proposes dependency-update PRs.',
+                       fields: ['repos', 'packages', 'prerelease', 'llm', 'skills', 'grants'] },
+    DotNetUpgrader:  { blurb: 'Scheduled sweep that upgrades every project to a target framework.',
+                       fields: ['repos', 'tfm', 'llm', 'skills', 'grants'] },
+    PipelineDoctor:  { blurb: 'Watches failed CI pipelines (GitHub Actions, GitLab CI, Azure DevOps) and proposes repairs. Add the CI connection per repository under Allowlists.',
+                       fields: ['repos', 'llm', 'skills', 'grants'] },
+    DocScribe:       { blurb: 'Maintains documentation on a weekly schedule; write-scoped to docs/ + README.md by policy.',
+                       fields: ['repos', 'llm', 'skills', 'grants'] },
+    CodeReviewer:    { blurb: 'Reviews opened pull requests with a read-only agent; the review comment is its only output.',
+                       fields: ['repos', 'llm', 'skills', 'grants'] },
+  };
+  const DEFAULT_META = { blurb: '', fields: ['repos', 'llm', 'skills', 'grants'] };
+
   async function loadAgents() {
     const [agents, skills] = await Promise.all([api('/admin/api/agents'), api('/admin/api/skills')]);
     const skillKeys = skills.map(s => s.key);
+    const agentByName = {};
+    agents.forEach(a => { agentByName[a.agentName] = a; });
 
-    document.getElementById('agent-cards').innerHTML = agents.map(a => `
+    document.getElementById('agent-cards').innerHTML = agents.map(a => {
+      const meta = AGENT_META[a.agentName] || DEFAULT_META;
+      const has = f => meta.fields.includes(f);
+      const grid = [];
+      if (has('repos')) grid.push(`<label class="f">Repository keys (comma-separated)<input type="text" data-f="repos" value="${esc(a.repositoryKeys.join(', '))}"></label>`);
+      if (has('packages')) grid.push(`<label class="f">Watched packages (comma-separated)<input type="text" data-f="packages" value="${esc(a.watchedPackages.join(', '))}"></label>`);
+      if (has('tfm')) grid.push(`<label class="f">Target framework<input type="text" data-f="tfm" value="${esc(a.targetFramework || '')}"></label>`);
+      if (has('llm')) grid.push(`<label class="f">LLM provider
+            <select data-f="provider">
+              <option value="">off (no AI)</option>
+              ${['Claude', 'OpenAi', 'Gemini'].map(p => `<option ${a.llmProvider === p ? 'selected' : ''}>${p}</option>`).join('')}
+            </select></label>`);
+      if (has('llm')) grid.push(`<label class="f">LLM model (blank = provider default)<input type="text" data-f="model" value="${esc(a.llmModel || '')}"></label>`);
+      if (has('skills')) grid.push(`<label class="f">Skills (comma-separated keys; available: ${esc(skillKeys.join(', ') || 'none')})<input type="text" data-f="skills" value="${esc(a.skillKeys.join(', '))}"></label>`);
+
+      const grants = has('grants')
+        ? `<label class="f" style="margin-top:14px">MCP grants (JSON: [{"serverKey":"…","tools":["…"],"prompts":["…"]}])
+          <textarea data-f="grants">${esc(a.mcpGrantsJson || '[]')}</textarea></label>`
+        : '';
+      const prerelease = has('prerelease')
+        ? `<label class="f check" style="margin-top:12px"><input type="checkbox" data-f="prerelease" ${a.includePrerelease ? 'checked' : ''}> Include prerelease versions</label>`
+        : '';
+
+      return `
       <div class="card" data-agent="${esc(a.agentName)}">
         <h3>${esc(a.agentName)}</h3>
-        <div class="grid2">
-          <label class="f">Repository keys (comma-separated)<input type="text" data-f="repos" value="${esc(a.repositoryKeys.join(', '))}"></label>
-          <label class="f">Watched packages (comma-separated)<input type="text" data-f="packages" value="${esc(a.watchedPackages.join(', '))}"></label>
-          <label class="f">Target framework (upgrader only)<input type="text" data-f="tfm" value="${esc(a.targetFramework || '')}"></label>
-          <label class="f">LLM provider
-            <select data-f="provider">
-              <option value="">off (no AI repair)</option>
-              ${['Claude', 'OpenAi', 'Gemini'].map(p => `<option ${a.llmProvider === p ? 'selected' : ''}>${p}</option>`).join('')}
-            </select>
-          </label>
-          <label class="f">LLM model (blank = provider default)<input type="text" data-f="model" value="${esc(a.llmModel || '')}"></label>
-          <label class="f">Skills (comma-separated keys; available: ${esc(skillKeys.join(', ') || 'none')})<input type="text" data-f="skills" value="${esc(a.skillKeys.join(', '))}"></label>
-        </div>
-        <label class="f" style="margin-top:14px">MCP grants (JSON: [{"serverKey":"…","tools":["…"],"prompts":["…"]}])
-          <textarea data-f="grants">${esc(a.mcpGrantsJson || '[]')}</textarea>
-        </label>
-        <label class="f check" style="margin-top:12px"><input type="checkbox" data-f="prerelease" ${a.includePrerelease ? 'checked' : ''}> Include prerelease versions</label>
+        ${meta.blurb ? `<p class="hint">${esc(meta.blurb)}</p>` : ''}
+        <div class="grid2">${grid.join('')}</div>
+        ${grants}
+        ${prerelease}
         <div class="save-row">
           <button class="btn" data-save-agent="${esc(a.agentName)}">Save ${esc(a.agentName)}</button>
           <span class="saved">saved ✓</span>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
 
     document.querySelectorAll('[data-save-agent]').forEach(btn => btn.addEventListener('click', () => {
+      const name = btn.getAttribute('data-save-agent');
+      const orig = agentByName[name] || {};
       const card = btn.closest('.card');
       const get = f => card.querySelector(`[data-f="${f}"]`);
-      let grants = get('grants').value.trim() || '[]';
+
+      // A field the card didn't render keeps its stored value untouched.
+      const grantsEl = get('grants');
+      const grants = (grantsEl ? grantsEl.value.trim() : '') || orig.mcpGrantsJson || '[]';
       try { JSON.parse(grants); } catch (e) { return toast('MCP grants must be valid JSON.', true); }
-      api('/admin/api/agents/' + encodeURIComponent(btn.getAttribute('data-save-agent')), {
+      const provider = get('provider');
+
+      api('/admin/api/agents/' + encodeURIComponent(name), {
         method: 'POST',
         body: JSON.stringify({
-          repositoryKeys: csv(get('repos').value),
-          watchedPackages: csv(get('packages').value),
-          targetFramework: get('tfm').value || null,
-          includePrerelease: get('prerelease').checked,
-          llmProvider: get('provider').value || null,
-          llmModel: get('model').value || null,
+          repositoryKeys: get('repos') ? csv(get('repos').value) : (orig.repositoryKeys || []),
+          watchedPackages: get('packages') ? csv(get('packages').value) : (orig.watchedPackages || []),
+          targetFramework: get('tfm') ? (get('tfm').value || null) : (orig.targetFramework || null),
+          includePrerelease: get('prerelease') ? get('prerelease').checked : !!orig.includePrerelease,
+          llmProvider: provider ? (provider.value || null) : (orig.llmProvider || null),
+          llmModel: get('model') ? (get('model').value || null) : (orig.llmModel || null),
           mcpGrantsJson: grants,
-          skillKeys: csv(get('skills').value),
+          skillKeys: get('skills') ? csv(get('skills').value) : (orig.skillKeys || []),
         }),
       }).then(() => {
         const saved = card.querySelector('.saved');
