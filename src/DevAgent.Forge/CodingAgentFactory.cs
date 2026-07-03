@@ -36,8 +36,8 @@ public static class CodingAgentFactory
         var paths = new WorkspacePathValidator(workspaceRoot);
         var commandRunner = new SafeCommandRunner(new CommandPolicy(), paths, processExecutor);
 
-        var fileTool = new WorkspaceFileTool(paths, protectedFiles, options.AllowDeploymentFileEdits);
-        var patchService = new PatchApplicationService(paths, protectedFiles, options.AllowDeploymentFileEdits);
+        var fileTool = new WorkspaceFileTool(paths, protectedFiles, options.AllowDeploymentFileEdits, options.WriteScope);
+        var patchService = new PatchApplicationService(paths, protectedFiles, options.AllowDeploymentFileEdits, options.WriteScope);
         var commandTools = new DotNetCommandTools(commandRunner);
 
         var handler = new CodingAgentToolHandler(toolPolicy, fileTool, patchService, commandTools, audit, jobId, mcpExecutor);

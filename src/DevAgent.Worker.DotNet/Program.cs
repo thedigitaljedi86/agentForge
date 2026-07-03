@@ -32,7 +32,47 @@ try
     using var http = new HttpClient();
 
     int exitCode;
-    if (string.Equals(jobType, "DotNetUpgrade", StringComparison.OrdinalIgnoreCase))
+    if (string.Equals(jobType, "PipelineFix", StringComparison.OrdinalIgnoreCase))
+    {
+        var settings = PipelineFixWorkerSettings.FromEnvironment(read);
+        var (commandRunner, pathValidator) = BuildGuards(settings.WorkspaceRoot);
+        var repair = BuildRepairFactory(settings.LlmProvider, settings.LlmModel, settings.JobId, audit, http, read);
+
+        var worker = new PipelineFixWorker(commandRunner, pathValidator, gitProvider, repair);
+        var result = await worker.RunAsync(settings);
+        Console.WriteLine($"[worker] job={result.JobId} type=PipelineFix status={result.Status} pr={result.PullRequestUrl} :: {result.Message}");
+        exitCode = result.Status is DevAgent.Contracts.Jobs.AgentJobStatus.Failed ? 1 : 0;
+    }
+    else if (string.Equals(jobType, "DocUpdate", StringComparison.OrdinalIgnoreCase))
+    {
+        var settings = DocUpdateWorkerSettings.FromEnvironment(read);
+        var (commandRunner, pathValidator) = BuildGuards(settings.WorkspaceRoot);
+
+        // DocScribe's agent is write-scoped to docs/ + README.md by POLICY —
+        // it is structurally unable to modify code.
+        var authoring = BuildRepairFactory(settings.LlmProvider, settings.LlmModel, settings.JobId, audit, http, read,
+            WriteScopePolicy.FromPrefixes(new[] { "docs/", "README.md" }));
+
+        var worker = new DocScribeWorker(commandRunner, pathValidator, gitProvider, authoring);
+        var result = await worker.RunAsync(settings);
+        Console.WriteLine($"[worker] job={result.JobId} type=DocUpdate status={result.Status} pr={result.PullRequestUrl} :: {result.Message}");
+        exitCode = result.Status is DevAgent.Contracts.Jobs.AgentJobStatus.Failed ? 1 : 0;
+    }
+    else if (string.Equals(jobType, "CodeReview", StringComparison.OrdinalIgnoreCase))
+    {
+        var settings = CodeReviewWorkerSettings.FromEnvironment(read);
+        var (commandRunner, pathValidator) = BuildGuards(settings.WorkspaceRoot);
+
+        // The review agent is fully READ-ONLY by policy; its only output is a comment.
+        var reviewer = BuildRepairFactory(settings.LlmProvider, settings.LlmModel, settings.JobId, audit, http, read,
+            WriteScopePolicy.ReadOnly);
+
+        var worker = new CodeReviewWorker(commandRunner, pathValidator, gitProvider, reviewer);
+        var result = await worker.RunAsync(settings);
+        Console.WriteLine($"[worker] job={result.JobId} type=CodeReview status={result.Status} :: {result.Message}");
+        exitCode = result.Status is DevAgent.Contracts.Jobs.AgentJobStatus.Failed ? 1 : 0;
+    }
+    else if (string.Equals(jobType, "DotNetUpgrade", StringComparison.OrdinalIgnoreCase))
     {
         var settings = DotNetUpgradeWorkerSettings.FromEnvironment(read);
         var (commandRunner, pathValidator) = BuildGuards(settings.WorkspaceRoot);
@@ -83,7 +123,7 @@ static (SafeCommandRunner, WorkspacePathValidator) BuildGuards(string workspaceR
 // MCP: when the Runner supplied a gateway + per-job token + granted tool
 // descriptors, those tools are exposed to the model (with the servers' own
 // schemas) and executed through the gateway — which re-validates every call.
-static Func<string, ICodingAgent>? BuildRepairFactory(string? providerName, string? model, string jobId, IAuditLog audit, HttpClient http, Func<string, string?> read)
+static Func<string, ICodingAgent>? BuildRepairFactory(string? providerName, string? model, string jobId, IAuditLog audit, HttpClient http, Func<string, string?> read, WriteScopePolicy? writeScope = null)
 {
     if (!Enum.TryParse<LlmProvider>(providerName, ignoreCase: true, out var provider))
     {
@@ -102,7 +142,8 @@ static Func<string, ICodingAgent>? BuildRepairFactory(string? providerName, stri
     }
 
     var llm = LlmClientFactory.Create(options, http);
-    return repoPath => CodingAgentFactory.Create(repoPath, llm, audit, jobId, mcpExecutor: mcpExecutor);
+    var agentOptions = new CodingAgentOptions { WriteScope = writeScope ?? WriteScopePolicy.AllowAll };
+    return repoPath => CodingAgentFactory.Create(repoPath, llm, audit, jobId, agentOptions, mcpExecutor: mcpExecutor);
 }
 
 // Parse the Runner-provided MCP tool descriptors into LLM tool schemas. The

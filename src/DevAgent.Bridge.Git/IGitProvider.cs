@@ -52,4 +52,14 @@ public interface IGitProvider
         GitRepository repository,
         PullRequestRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Posts a comment on an existing pull request (used by the read-only
+    /// review agent — its ONLY output channel; it can never push or merge).
+    /// </summary>
+    Task<PullRequestResult> PostPullRequestCommentAsync(
+        GitRepository repository,
+        int prNumber,
+        string comment,
+        CancellationToken cancellationToken = default);
 }

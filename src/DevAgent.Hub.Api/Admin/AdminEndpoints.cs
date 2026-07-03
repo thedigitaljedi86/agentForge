@@ -47,6 +47,7 @@ public static class AdminEndpoints
             (db, v) => db.TargetFrameworks.Add(new TargetFrameworkEntity { Framework = v }),
             (db, v) => db.TargetFrameworks.Where(f => f.Framework == v).ExecuteDeleteAsync());
         MapJobTypeImages(admin);
+        MapCiConnections(admin);
         MapPackageUsage(admin);
         MapMcpServers(admin);
         MapSkills(admin);
@@ -184,6 +185,75 @@ public static class AdminEndpoints
             }
 
             await RecordAsync(db, audit, http, "jobtype-images", "set", $"{body.JobType} → {body.Image}", ct);
+            return Results.Ok();
+        });
+    }
+
+    // ---------- CI connections (PipelineDoctor) ----------
+
+    public sealed record CiConnectionBody(
+        string RepositoryKey, string Provider, string BaseUrl, string ProjectPath, string? TokenEnvVar);
+
+    private static readonly string[] CiProviders = { "GitHubActions", "GitLabCi", "AzureDevOpsPipelines" };
+
+    private static void MapCiConnections(RouteGroupBuilder admin)
+    {
+        admin.MapGet("/ci-connections", async (IDbContextFactory<DevAgentDbContext> f, CancellationToken ct) =>
+        {
+            await using var db = await f.CreateDbContextAsync(ct);
+            // TokenEnvVar is a REFERENCE (env var name), not a secret value.
+            return Results.Ok(await db.CiConnections.AsNoTracking().OrderBy(c => c.RepositoryKey).ToListAsync(ct));
+        });
+
+        admin.MapPost("/ci-connections", async (
+            CiConnectionBody body, HttpContext http,
+            IDbContextFactory<DevAgentDbContext> f, IAuditLog audit, CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(body.RepositoryKey))
+            {
+                return Results.BadRequest(new { error = "RepositoryKey is required." });
+            }
+
+            if (!CiProviders.Contains(body.Provider, StringComparer.OrdinalIgnoreCase))
+            {
+                return Results.BadRequest(new { error = $"Provider must be one of: {string.Join(", ", CiProviders)}." });
+            }
+
+            if (!Uri.TryCreate(body.BaseUrl, UriKind.Absolute, out var uri)
+                || (uri.Scheme != "https" && uri.Scheme != "http"))
+            {
+                return Results.BadRequest(new { error = "BaseUrl must be an absolute http(s) URL." });
+            }
+
+            if (string.IsNullOrWhiteSpace(body.ProjectPath))
+            {
+                return Results.BadRequest(new { error = "ProjectPath is required (owner/repo, group/project or org/project)." });
+            }
+
+            await using var db = await f.CreateDbContextAsync(ct);
+            var existing = await db.CiConnections.FindAsync(new object[] { body.RepositoryKey }, ct);
+            var entity = existing ?? new CiConnectionEntity { RepositoryKey = body.RepositoryKey };
+            entity.Provider = CiProviders.First(p => p.Equals(body.Provider, StringComparison.OrdinalIgnoreCase));
+            entity.BaseUrl = body.BaseUrl.TrimEnd('/');
+            entity.ProjectPath = body.ProjectPath.Trim();
+            entity.TokenEnvVar = string.IsNullOrWhiteSpace(body.TokenEnvVar) ? null : body.TokenEnvVar!.Trim();
+            if (existing is null)
+            {
+                db.CiConnections.Add(entity);
+            }
+
+            await RecordAsync(db, audit, http, "ci-connections", existing is null ? "add" : "update",
+                $"{body.RepositoryKey} → {entity.Provider} {entity.BaseUrl} ({entity.ProjectPath}) token-env={entity.TokenEnvVar ?? "-"}", ct);
+            return Results.Ok();
+        });
+
+        admin.MapDelete("/ci-connections/{repositoryKey}", async (
+            string repositoryKey, HttpContext http,
+            IDbContextFactory<DevAgentDbContext> f, IAuditLog audit, CancellationToken ct) =>
+        {
+            await using var db = await f.CreateDbContextAsync(ct);
+            await db.CiConnections.Where(c => c.RepositoryKey == repositoryKey).ExecuteDeleteAsync(ct);
+            await RecordAsync(db, audit, http, "ci-connections", "delete", repositoryKey, ct);
             return Results.Ok();
         });
     }

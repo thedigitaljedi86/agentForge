@@ -17,15 +17,18 @@ public sealed class WorkspaceFileTool
     private readonly WorkspacePathValidator _paths;
     private readonly ProtectedFilePolicy _protected;
     private readonly bool _allowDeploymentEdits;
+    private readonly WriteScopePolicy _writeScope;
 
     public WorkspaceFileTool(
         WorkspacePathValidator paths,
         ProtectedFilePolicy protectedFiles,
-        bool allowDeploymentEdits)
+        bool allowDeploymentEdits,
+        WriteScopePolicy? writeScope = null)
     {
         _paths = paths;
         _protected = protectedFiles;
         _allowDeploymentEdits = allowDeploymentEdits;
+        _writeScope = writeScope ?? WriteScopePolicy.AllowAll;
     }
 
     public Task<ToolCallResult> ListAsync(ListFilesToolCall call, CancellationToken ct = default)
@@ -105,6 +108,14 @@ public sealed class WorkspaceFileTool
         if (!pathCheck.IsValid)
         {
             return pathCheck.Reason;
+        }
+
+        // The agent's write scope (e.g. docs-only, or read-only) applies to
+        // every mutation, on top of the protected-file rules.
+        var scope = _writeScope.ValidateWrite(relativePath);
+        if (!scope.IsValid)
+        {
+            return scope.Reason;
         }
 
         var editable = _protected.ValidateEditable(relativePath, _allowDeploymentEdits);

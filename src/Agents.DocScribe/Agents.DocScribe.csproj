@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Agents.DocScribe generates and MAINTAINS documentation for allowlisted
+    repositories: a deterministic code map (no LLM) plus optional agent-written
+    architecture docs. Scheduled weekly so documentation stays current. The
+    in-sandbox authoring agent is write-scoped to docs/ + README.md by policy —
+    it is structurally unable to modify code. Output is always a PR.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Agents.DocScribe</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+    <ProjectReference Include="..\DevAgent.Bridge.Llm\DevAgent.Bridge.Llm.csproj" />
+  </ItemGroup>
+
+</Project>

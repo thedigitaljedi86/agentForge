@@ -1,7 +1,15 @@
+using Agents.CodeReviewer;
+using Agents.ConfluenceGuide;
 using Agents.DependencyPilot;
+using Agents.DocScribe;
 using Agents.DotNetUpgrader;
+using Agents.PipelineDoctor;
+using Agents.SplunkSentinel;
 using DevAgent.Audit;
+using DevAgent.Bridge.Ci;
+using DevAgent.Bridge.Confluence;
 using DevAgent.Bridge.NuGet;
+using DevAgent.Bridge.Splunk;
 using DevAgent.Hub.Api.Admin;
 using DevAgent.Hub.Api.Application;
 using DevAgent.Hub.Api.Jobs;
@@ -67,6 +75,49 @@ if (!storeEnabled)
 builder.Services.AddScoped<IDependencyUpdateTrigger, HubDependencyUpdateTrigger>();
 builder.Services.AddScoped<DependencyPilotService>();
 
+// --- PipelineDoctor agent (multi-provider CI watcher) ---
+builder.Services.Configure<PipelineDoctorOptions>(
+    builder.Configuration.GetSection(PipelineDoctorOptions.SectionName));
+builder.Services.AddHttpClient("ci");
+builder.Services.AddSingleton(sp =>
+    new CiProviderFactory(sp.GetRequiredService<IHttpClientFactory>().CreateClient("ci")));
+if (storeEnabled)
+{
+    builder.Services.AddScoped<ICiConnectionSource, StoreCiConnectionSource>();
+    builder.Services.AddScoped<IProcessedRunStore, StoreProcessedRunStore>();
+}
+else
+{
+    builder.Services.AddSingleton<ICiConnectionSource, NullCiConnectionSource>();
+    builder.Services.AddSingleton<IProcessedRunStore, InMemoryProcessedRunStore>();
+}
+
+builder.Services.AddScoped<IPipelineFixTrigger, HubPipelineFixTrigger>();
+builder.Services.AddScoped<PipelineDoctorService>();
+
+// --- DocScribe agent (scheduled documentation maintenance) ---
+builder.Services.Configure<DocScribeOptions>(
+    builder.Configuration.GetSection(DocScribeOptions.SectionName));
+builder.Services.AddScoped<IDocUpdateTrigger, HubDocUpdateTrigger>();
+builder.Services.AddScoped<DocScribeService>();
+
+// --- CodeReviewer agent (PR-opened webhook -> read-only review) ---
+builder.Services.Configure<CodeReviewerOptions>(
+    builder.Configuration.GetSection(CodeReviewerOptions.SectionName));
+builder.Services.AddScoped<ICodeReviewTrigger, HubCodeReviewTrigger>();
+builder.Services.AddScoped<CodeReviewerService>();
+
+// --- SplunkSentinel (observer) + ConfluenceGuide (docs sync planner) ---
+builder.Services.Configure<SplunkSentinelOptions>(
+    builder.Configuration.GetSection(SplunkSentinelOptions.SectionName));
+builder.Services.AddHttpClient<ISplunkSearchClient, HttpSplunkSearchClient>();
+builder.Services.AddScoped<SplunkSentinelService>();
+
+builder.Services.Configure<ConfluenceGuideOptions>(
+    builder.Configuration.GetSection(ConfluenceGuideOptions.SectionName));
+builder.Services.AddHttpClient<IConfluenceClient, HttpConfluenceClient>();
+builder.Services.AddScoped<ConfluenceGuideService>();
+
 // Store-backed agent options must be registered AFTER the config bindings
 // above so they take precedence when the store is enabled.
 if (storeEnabled)
@@ -83,6 +134,10 @@ builder.Services.AddHangfire(cfg => cfg
 builder.Services.AddHangfireServer();
 builder.Services.AddScoped<PackageUpdateCheckJob>();
 builder.Services.AddScoped<ScheduledDotNetUpgradeJob>();
+builder.Services.AddScoped<PipelineDoctorSweepJob>();
+builder.Services.AddScoped<ScheduledDocUpdateJob>();
+builder.Services.AddScoped<SplunkSentinelSweepJob>();
+builder.Services.AddScoped<ConfluenceSyncPlanJob>();
 
 // Swagger / OpenAPI for interactive local testing of the manual-trigger endpoints.
 builder.Services.AddEndpointsApiExplorer();
@@ -154,6 +209,30 @@ RecurringJob.AddOrUpdate<PackageUpdateCheckJob>(
 // EXAMPLE scheduled agent: nightly .NET upgrade sweep of all watched repos.
 RecurringJob.AddOrUpdate<ScheduledDotNetUpgradeJob>(
     "dotnetupgrader-nightly-sweep",
+    job => job.RunAsync(),
+    Cron.Daily);
+
+// PipelineDoctor: check watched repositories' CI for new failures twice an hour.
+RecurringJob.AddOrUpdate<PipelineDoctorSweepJob>(
+    "pipelinedoctor-ci-sweep",
+    job => job.RunAsync(),
+    "*/30 * * * *");
+
+// DocScribe: weekly documentation-maintenance sweep (Monday 06:00).
+RecurringJob.AddOrUpdate<ScheduledDocUpdateJob>(
+    "docscribe-weekly-docs",
+    job => job.RunAsync(),
+    "0 6 * * 1");
+
+// SplunkSentinel: hourly observation sweep (no-op without configured searches).
+RecurringJob.AddOrUpdate<SplunkSentinelSweepJob>(
+    "splunksentinel-hourly-sweep",
+    job => job.RunAsync(),
+    Cron.Hourly);
+
+// ConfluenceGuide: daily docs→page sync plan (read-only; no-op unconfigured).
+RecurringJob.AddOrUpdate<ConfluenceSyncPlanJob>(
+    "confluenceguide-daily-plan",
     job => job.RunAsync(),
     Cron.Daily);
 
@@ -237,6 +316,88 @@ app.MapPost("/hub/webhooks/nuget-package-published", async (
     });
 });
 
+// --- Manual trigger: sweep one repository's CI for failures now ---
+app.MapPost("/hub/pipelinedoctor/fix", async (
+    StartPipelineFixHubRequest body,
+    PipelineDoctorService pipelineDoctor,
+    CancellationToken cancellationToken) =>
+{
+    var findings = await pipelineDoctor.SweepRepositoryAsync(body.RepositoryKey, cancellationToken);
+    return Results.Ok(new
+    {
+        handled = findings.Count,
+        findings = findings.Select(f => new { f.RepositoryKey, f.RunId, f.Branch, f.Result }),
+    });
+});
+
+// --- Manual trigger: refresh one repository's documentation now ---
+app.MapPost("/hub/docscribe/update", async (
+    StartDocUpdateHubRequest body,
+    DocScribeService docScribe,
+    CancellationToken cancellationToken) =>
+{
+    var result = await docScribe.StartDocUpdateWorkflowAsync(body.RepositoryKey, cancellationToken);
+    return Results.Ok(result);
+});
+
+// --- Manual trigger: review a PR now ---
+app.MapPost("/hub/codereviewer/review", async (
+    PullRequestOpenedWebhook body,
+    CodeReviewerService codeReviewer,
+    CancellationToken cancellationToken) =>
+{
+    var result = await codeReviewer.HandlePullRequestOpenedAsync(
+        body.RepositoryKey, body.SourceBranch, body.PrNumber, cancellationToken);
+    return Results.Ok(result);
+});
+
+// --- Webhook: a pull request was opened on a watched repository ---
+// SECURITY: The payload carries only a repository KEY, a branch name and a PR
+// number. The key must be on CodeReviewer's watch list, the Runner re-checks
+// the key against the allowlist and the branch against the ref-name filter,
+// and the review agent is read-only — a webhook can never cause a code change.
+app.MapPost("/hub/webhooks/pull-request-opened", async (
+    PullRequestOpenedWebhook body,
+    HttpContext http,
+    CodeReviewerService codeReviewer,
+    IServiceProvider services,
+    CancellationToken cancellationToken) =>
+{
+    var dbFactory = services.GetService<IDbContextFactory<DevAgentDbContext>>();
+    if (dbFactory is not null)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+        var hook = await db.Webhooks.AsNoTracking()
+            .FirstOrDefaultAsync(w => w.Key == "pull-request-opened", cancellationToken);
+        if (hook is { Enabled: false })
+        {
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        if (!string.IsNullOrEmpty(hook?.SharedSecret)
+            && http.Request.Headers["X-DevAgent-Secret"].ToString() != hook.SharedSecret)
+        {
+            return Results.Unauthorized();
+        }
+    }
+
+    var result = await codeReviewer.HandlePullRequestOpenedAsync(
+        body.RepositoryKey, body.SourceBranch, body.PrNumber, cancellationToken);
+
+    return Results.Ok(result);
+});
+
+// --- Manual trigger: run the Splunk searches / Confluence sync plan now ---
+app.MapPost("/hub/splunksentinel/sweep", async (
+    SplunkSentinelService sentinel,
+    CancellationToken cancellationToken) =>
+        Results.Ok(await sentinel.SweepAsync(cancellationToken)));
+
+app.MapPost("/hub/confluenceguide/plan", async (
+    ConfluenceGuideService guide,
+    CancellationToken cancellationToken) =>
+        Results.Ok(await guide.PlanSyncAsync(cancellationToken)));
+
 app.Run();
 
 /// <summary>Webhook body: which package, which new version. Nothing else.</summary>
@@ -261,6 +422,26 @@ public sealed record StartDotNetUpgradeHubRequest
     public required string RepositoryKey { get; init; }
     public required string TargetFramework { get; init; }
     public string? RequestedBy { get; init; }
+}
+
+/// <summary>PR webhook / manual review body: key + branch + PR number. Nothing else.</summary>
+public sealed record PullRequestOpenedWebhook
+{
+    public required string RepositoryKey { get; init; }
+    public required string SourceBranch { get; init; }
+    public int? PrNumber { get; init; }
+}
+
+/// <summary>Manual-trigger body: sweep this repository's CI for failures.</summary>
+public sealed record StartPipelineFixHubRequest
+{
+    public required string RepositoryKey { get; init; }
+}
+
+/// <summary>Manual-trigger body: refresh this repository's documentation.</summary>
+public sealed record StartDocUpdateHubRequest
+{
+    public required string RepositoryKey { get; init; }
 }
 
 public partial class Program { }
