@@ -109,7 +109,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Status dashboard: wwwroot/index.html served at "/";
+// Landing page: wwwroot/index.html served at "/";
+// status dashboard: wwwroot/status/index.html served at /status/;
 // admin console: wwwroot/admin/index.html served at /admin/.
 app.UseDefaultFiles();
 app.UseStaticFiles();
