@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Agents.ConfluenceGuide plans (and, when a connection is configured,
+    performs) the sync of repository documentation to Confluence pages.
+    Publishing happens FROM THE HUB with the admin-configured token reference —
+    never from a sandbox, which must never hold Confluence credentials.
+  -->
+  <PropertyGroup>
+    <RootNamespace>Agents.ConfluenceGuide</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+    <ProjectReference Include="..\DevAgent.Bridge.Confluence\DevAgent.Bridge.Confluence.csproj" />
+    <ProjectReference Include="..\DevAgent.Audit\DevAgent.Audit.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -46,6 +46,9 @@ public sealed record WorkerJobSettings
     public const string OnlyUpgradeVar = "DEVAGENT_ONLY_UPGRADE";
     public const string LlmProviderVar = "DEVAGENT_LLM_PROVIDER";
     public const string LlmModelVar = "DEVAGENT_LLM_MODEL";
+    public const string FailureContextVar = "DEVAGENT_FAILURE_CONTEXT";
+    public const string SourceBranchVar = "DEVAGENT_SOURCE_BRANCH";
+    public const string PrNumberVar = "DEVAGENT_PR_NUMBER";
 
     /// <summary>
     /// Builds settings from a variable lookup (defaults to the process

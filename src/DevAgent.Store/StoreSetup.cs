@@ -91,9 +91,12 @@ public static class StoreSetup
             }
         }
 
-        if (!await db.JobTypeImages.AnyAsync(ct))
+        // Per-key add-if-missing so a database created before a job type
+        // existed still receives its mapping on upgrade (admins can edit it).
+        var knownJobTypes = await db.JobTypeImages.Select(j => j.JobType).ToListAsync(ct);
+        foreach (var pair in guard.GetSection("JobTypeImages").GetChildren())
         {
-            foreach (var pair in guard.GetSection("JobTypeImages").GetChildren())
+            if (!knownJobTypes.Contains(pair.Key))
             {
                 db.JobTypeImages.Add(new JobTypeImageEntity { JobType = pair.Key, Image = pair.Value ?? string.Empty });
             }
@@ -130,38 +133,62 @@ public static class StoreSetup
 
     private static async Task SeedAgentsAsync(DevAgentDbContext db, IConfiguration configuration, CancellationToken ct)
     {
-        if (await db.AgentSettings.AnyAsync(ct))
+        // Per-agent add-if-missing, so databases created before an agent
+        // existed still receive its settings row on upgrade.
+        var existing = await db.AgentSettings.Select(a => a.AgentName).ToListAsync(ct);
+
+        if (!existing.Contains("DependencyPilot"))
         {
-            return;
+            var pilot = configuration.GetSection("DependencyPilot");
+            db.AgentSettings.Add(new AgentSettingEntity
+            {
+                AgentName = "DependencyPilot",
+                RepositoryKeysJson = ToJsonArray(pilot.GetSection("RepositoryKeys").Get<string[]>()),
+                WatchedPackagesJson = ToJsonArray(pilot.GetSection("WatchedPackages").Get<string[]>()),
+                IncludePrerelease = pilot.GetValue("IncludePrerelease", false),
+                LlmProvider = pilot["Llm:Provider"],
+                LlmModel = pilot["Llm:Model"],
+            });
         }
 
-        var pilot = configuration.GetSection("DependencyPilot");
-        db.AgentSettings.Add(new AgentSettingEntity
+        if (!existing.Contains("DotNetUpgrader"))
         {
-            AgentName = "DependencyPilot",
-            RepositoryKeysJson = ToJsonArray(pilot.GetSection("RepositoryKeys").Get<string[]>()),
-            WatchedPackagesJson = ToJsonArray(pilot.GetSection("WatchedPackages").Get<string[]>()),
-            IncludePrerelease = pilot.GetValue("IncludePrerelease", false),
-            LlmProvider = pilot["Llm:Provider"],
-            LlmModel = pilot["Llm:Model"],
-        });
+            var upgrader = configuration.GetSection("DotNetUpgrader");
+            db.AgentSettings.Add(new AgentSettingEntity
+            {
+                AgentName = "DotNetUpgrader",
+                RepositoryKeysJson = ToJsonArray(upgrader.GetSection("RepositoryKeys").Get<string[]>()),
+                TargetFramework = upgrader["TargetFramework"],
+                LlmProvider = upgrader["Llm:Provider"],
+                LlmModel = upgrader["Llm:Model"],
+            });
+        }
 
-        var upgrader = configuration.GetSection("DotNetUpgrader");
-        db.AgentSettings.Add(new AgentSettingEntity
+        foreach (var agentName in new[] { "PipelineDoctor", "DocScribe", "CodeReviewer" })
         {
-            AgentName = "DotNetUpgrader",
-            RepositoryKeysJson = ToJsonArray(upgrader.GetSection("RepositoryKeys").Get<string[]>()),
-            TargetFramework = upgrader["TargetFramework"],
-            LlmProvider = upgrader["Llm:Provider"],
-            LlmModel = upgrader["Llm:Model"],
-        });
+            if (!existing.Contains(agentName))
+            {
+                var section = configuration.GetSection(agentName);
+                db.AgentSettings.Add(new AgentSettingEntity
+                {
+                    AgentName = agentName,
+                    RepositoryKeysJson = ToJsonArray(section.GetSection("RepositoryKeys").Get<string[]>()),
+                    LlmProvider = section["Llm:Provider"],
+                    LlmModel = section["Llm:Model"],
+                });
+            }
+        }
     }
 
     private static async Task SeedWebhooksAsync(DevAgentDbContext db, CancellationToken ct)
     {
-        if (!await db.Webhooks.AnyAsync(ct))
+        var existing = await db.Webhooks.Select(w => w.Key).ToListAsync(ct);
+        foreach (var key in new[] { "nuget-package-published", "pull-request-opened" })
         {
-            db.Webhooks.Add(new WebhookEntity { Key = "nuget-package-published", Enabled = true });
+            if (!existing.Contains(key))
+            {
+                db.Webhooks.Add(new WebhookEntity { Key = key, Enabled = true });
+            }
         }
     }
 

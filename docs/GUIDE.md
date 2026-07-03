@@ -6,16 +6,20 @@
 
 ## What is DevAgent?
 
-DevAgent is a **self-hosted platform for running AI agents that do software-development chores** — safely. Two agents ship today:
+DevAgent is a **self-hosted platform for running AI agents that do software-development chores** — safely. Five agents ship today, plus two observers:
 
 - **DependencyPilot** — watches your NuGet packages: when a new version is published, it updates the dependency in every affected repository, builds and tests the change in an isolated container, and opens a pull request for a human to review.
 - **.NET Upgrader** — a scheduled (nightly) sweep that upgrades every project in watched repositories to a new target framework (e.g. `net10.0`), builds, tests, and opens a PR.
+- **PipelineDoctor** — watches for failed CI pipelines on **GitHub Actions, GitLab CI and Azure DevOps** (one connection per repository, managed in the admin console), reproduces the failure in a sandbox, lets the caged coding agent repair it, and opens a PR only when the build is green again.
+- **DocScribe** — generates a deterministic code map (`docs/CODEMAP.md`) and maintains `docs/` + `README.md` on a **weekly schedule**, so documentation keeps up with the code. Its in-sandbox agent is *write-scoped to docs/* by policy — it structurally cannot modify code.
+- **CodeReviewer** — reviews newly-opened pull requests with a **read-only** agent; its only output is a review comment. It never pushes and never merges.
+- **SplunkSentinel & ConfluenceGuide** (observer tier) — scheduled Splunk searches recorded as audited findings, and a docs→Confluence sync plan; actual page publishing is an explicit operator action, never a scheduled one.
 
 The platform's core idea is simple:
 
 > **Automation gets a narrow, allowlisted lane. Everything it does is logged. The output is always a pull request — never a merge.**
 
-That last sentence is not a promise, it's architecture. There is no code path in the platform that merges anything, and 269 tests fail if someone tries to add the dangerous parts back.
+That last sentence is not a promise, it's architecture. There is no code path in the platform that merges anything, and 350 tests fail if someone tries to add the dangerous parts back.
 
 ---
 
@@ -48,7 +52,11 @@ Think of it as four stations on a one-way conveyor belt, with a security guard a
 | **DevAgent.Audit** | The camera crew: append-only log of decisions, prompts, tool calls and diffs. |
 | **Agents.DependencyPilot** | Decides *which package updates* should happen and asks the platform to do them. |
 | **Agents.DotNetUpgrader** | Decides *which framework upgrades* should happen — the example of a scheduled agent. |
-| **DevAgent.Bridge.Git / .NuGet** | Adapters for Git hosts and NuGet feeds, so no provider is hardcoded. |
+| **Agents.PipelineDoctor** | Watches failing pipelines on **GitHub Actions, GitLab CI and Azure DevOps** and proposes a sandboxed repair per new failure. |
+| **Agents.DocScribe** | Maintains repository documentation on a weekly schedule; its in-sandbox agent is **write-scoped to docs/** by policy. |
+| **Agents.CodeReviewer** | First-pass PR review by a **read-only** agent; the review comment is its only output. |
+| **Agents.SplunkSentinel / .ConfluenceGuide** | Observer tier: scheduled Splunk searches recorded as audited findings, and a docs→Confluence sync plan (publishing is an explicit operator action). |
+| **DevAgent.Bridge.Git / .NuGet / .Ci** | Adapters for Git hosts, NuGet feeds and CI systems, so no provider is hardcoded. |
 | **DevAgent.Contracts** | The shared types everything else speaks. |
 
 ---
@@ -165,7 +173,7 @@ Runner__Sandbox__WorkerGitToken=<limited-bot-token>
 
 …and make sure the worker image appears in both `Guard:ContainerImages` and `Guard:JobTypeImages`.
 
-**Run the tests** (269 across 11 projects, including every security invariant):
+**Run the tests** (350 across 17 projects, including every security invariant):
 
 ```bash
 dotnet test
@@ -293,6 +301,9 @@ Honesty section — the platform is wired end-to-end and tested, but a few edges
 | Audit sink | Console + in-memory ring (admin console window) | Implement `IAuditLog` against a durable, append-only store |
 | Admin login | Local user (PBKDF2), cookie auth | Add your OIDC provider behind the same authentication seam |
 | MCP transport | Streamable HTTP (tools + prompts) | stdio-launched local servers as a separately-gated feature |
+| CI providers | GitHub Actions / GitLab CI / Azure DevOps clients implemented (read-only); need a CI connection + token env var per repo | Add connections in the admin console; set the token env vars on the Hub host |
+| PR review comments | `PlaceholderGitProvider` logs the review | Same `IGitProvider` production step as PRs |
+| SplunkSentinel / ConfluenceGuide | Observer tier: searches + sync plans recorded as audited findings; Confluence publish is an explicit endpoint | Configure connections; publishing stays operator-triggered by design |
 
 Each row is behind an interface, so none of these upgrades touch the security model.
 
@@ -329,20 +340,29 @@ Create a project like `Agents.DependencyPilot` or `Agents.DotNetUpgrader`: it pr
 src/
   DevAgent.Contracts/        Shared DTOs, enums, validation results (no dependencies)
   DevAgent.Audit/            Audit events + IAuditLog (console sink today)
-  DevAgent.Guard/            SECURITY CORE: allowlist policies, path validation, SafeCommandRunner
-  DevAgent.Bridge.Git/       IGitProvider + placeholder implementation
+  DevAgent.Guard/            SECURITY CORE: allowlist policies, path validation, SafeCommandRunner,
+                             write-scope + ref-name policies
+  DevAgent.Bridge.Git/       IGitProvider (PRs + review comments) + placeholder implementation
   DevAgent.Bridge.NuGet/     NuGet V3 feed client + package-usage scanner
+  DevAgent.Bridge.Ci/        Read-only CI providers: GitHub Actions, GitLab CI, Azure DevOps
   DevAgent.Bridge.Llm/       Claude / ChatGPT / Gemini clients + factory (model per agent)
   DevAgent.Bridge.Mcp/       MCP client (tools + prompts), grant policy, gateway client
+  DevAgent.Bridge.Splunk/    Minimal read-only Splunk oneshot-search client
+  DevAgent.Bridge.Confluence/ Minimal Confluence page client (find/upsert)
   DevAgent.Store/            SQLite config store (EF Core): everything the admin console edits
   DevAgent.Forge/            The caged coding agent: tools, policies, loop, factory
-  DevAgent.Worker.DotNet/    Runs inside the sandbox: clone→edit→build/test→(repair)→PR
+  DevAgent.Worker.DotNet/    Runs inside the sandbox: update/upgrade/repair/docs/review flows
   DevAgent.Runner.Api/       The gate: validation + stub/CLI (podman/docker) sandbox launchers
-  DevAgent.Hub.Api/          Front door: API, webhook, Hangfire schedule, dashboard, Swagger
+  DevAgent.Hub.Api/          Front door: API, webhooks, Hangfire schedules, dashboard, admin console
   Agents.DependencyPilot/    Agent: NuGet dependency updates
   Agents.DotNetUpgrader/     Agent: target-framework upgrades (scheduled example)
+  Agents.PipelineDoctor/     Agent: CI failure watcher → sandboxed pipeline repair
+  Agents.DocScribe/          Agent: scheduled documentation maintenance (docs-scoped)
+  Agents.CodeReviewer/       Agent: read-only PR review via webhook
+  Agents.SplunkSentinel/     Agent (observer): scheduled Splunk searches → audited findings
+  Agents.ConfluenceGuide/    Agent (planner): docs → Confluence sync plan + explicit publish
 
-tests/                       9 projects, 269 tests — every security invariant is locked
+tests/                       17 projects, 350 tests — every security invariant is locked
 docs/
   GUIDE.md                   This document
   index.html                 Single-page getting-started reference (Danish)

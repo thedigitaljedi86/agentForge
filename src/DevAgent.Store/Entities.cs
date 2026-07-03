@@ -130,6 +130,35 @@ public class AgentSettingEntity
     public string SkillKeysJson { get; set; } = "[]";
 }
 
+/// <summary>
+/// CI connection for one allowlisted repository (PipelineDoctor). The token is
+/// a secret REFERENCE (env-var name on the Hub host) — never a stored value.
+/// </summary>
+public class CiConnectionEntity
+{
+    [Key] public string RepositoryKey { get; set; } = string.Empty;
+
+    /// <summary>"GitHubActions", "GitLabCi" or "AzureDevOpsPipelines".</summary>
+    public string Provider { get; set; } = string.Empty;
+
+    /// <summary>API base URL (e.g. https://api.github.com, https://gitlab.example.com, https://dev.azure.com).</summary>
+    public string BaseUrl { get; set; } = string.Empty;
+
+    /// <summary>Provider-specific project path ("owner/repo", "group/project", "org/project").</summary>
+    public string ProjectPath { get; set; } = string.Empty;
+
+    /// <summary>Env-var NAME on the Hub host holding the (read-only) CI token.</summary>
+    public string? TokenEnvVar { get; set; }
+}
+
+/// <summary>A failed pipeline run PipelineDoctor already handled (dedupe).</summary>
+public class ProcessedPipelineRunEntity
+{
+    public string RepositoryKey { get; set; } = string.Empty;
+    public string RunId { get; set; } = string.Empty;
+    public DateTimeOffset ProcessedAtUtc { get; set; } = DateTimeOffset.UtcNow;
+}
+
 /// <summary>The single local admin login. Only a PBKDF2 hash is stored.</summary>
 public class AdminUserEntity
 {

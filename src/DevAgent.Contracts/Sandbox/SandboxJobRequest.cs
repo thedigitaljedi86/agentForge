@@ -40,6 +40,15 @@ public sealed record SandboxJobRequest
     /// <summary>Whether the update should refuse to downgrade.</summary>
     public bool OnlyUpgrade { get; init; } = true;
 
+    /// <summary>CI failure log tail for PipelineFix jobs (context, truncated).</summary>
+    public string? FailureContext { get; init; }
+
+    /// <summary>PR source branch for CodeReview jobs (validated ref name).</summary>
+    public string? SourceBranch { get; init; }
+
+    /// <summary>PR number for CodeReview jobs, when known.</summary>
+    public int? PrNumber { get; init; }
+
     // ---- Agent capabilities, resolved SERVER-SIDE by the Runner from the ----
     // ---- admin store. None of these can be supplied by an API caller.    ----
 

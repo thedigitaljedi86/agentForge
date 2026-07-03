@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Bridge.Ci abstracts CI providers (GitHub Actions, GitLab CI,
+    Azure DevOps Pipelines) behind ONE read-only interface: list failed
+    pipeline runs and fetch their failure logs. It never triggers, cancels or
+    modifies anything on the CI side, and tokens are referenced as environment
+    variable NAMES on the Hub host — never stored values.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Bridge.Ci</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

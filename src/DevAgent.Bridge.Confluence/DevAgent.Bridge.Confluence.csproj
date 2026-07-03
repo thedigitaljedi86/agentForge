@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DevAgent.Bridge.Confluence is a minimal Confluence page client for the
+    ConfluenceGuide agent: find a page by title, create or update it. The token
+    is referenced as an environment-variable NAME on the Hub host — the value
+    is never stored, never displayed and never enters a sandbox.
+  -->
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Bridge.Confluence</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

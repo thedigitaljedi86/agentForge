@@ -35,20 +35,28 @@ src/
   DevAgent.Bridge.Llm/       ILlmClient implementations: Claude / ChatGPT / Gemini (+ factory)
   DevAgent.Bridge.Mcp/       MCP client (tools + prompts), grant policy, gateway client
   DevAgent.Store/            SQLite config store (EF Core) behind the admin console
-  DevAgent.Worker.DotNet/    Sandbox console app: RepoWorkflow (clone->edit->build/test/repair->PR)
+  DevAgent.Bridge.Ci/        Read-only CI providers: GitHub Actions, GitLab CI, Azure DevOps
+  DevAgent.Bridge.Splunk/    Minimal read-only Splunk oneshot-search client
+  DevAgent.Bridge.Confluence/ Minimal Confluence page client (find/upsert)
+  DevAgent.Worker.DotNet/    Sandbox console app: update/upgrade/pipeline-repair/docs/review flows
   DevAgent.Runner.Api/       Final validation gate; ISandboxJobRunner + PodmanSandboxJobRunner stub
-  DevAgent.Hub.Api/          Front door: webhooks, Hangfire schedule, manual triggers
+  DevAgent.Hub.Api/          Front door: webhooks, Hangfire schedules, manual triggers, admin console
   Agents.DependencyPilot/    Concrete agent: proposes NuGet PackageReference updates
   Agents.DotNetUpgrader/     Concrete agent: proposes upgrading all projects' target framework
+  Agents.PipelineDoctor/     Concrete agent: CI failure watcher → sandboxed pipeline repair
+  Agents.DocScribe/          Concrete agent: scheduled documentation maintenance (docs-scoped)
+  Agents.CodeReviewer/       Concrete agent: read-only PR review via webhook
+  Agents.SplunkSentinel/     Observer agent: scheduled Splunk searches → audited findings
+  Agents.ConfluenceGuide/    Planner agent: docs → Confluence sync plan + explicit publish
 
-tests/
+tests/                       17 projects, 350 tests
   DevAgent.Guard.Tests/             allowlists, path traversal, protected files, SafeCommandRunner
-  DevAgent.Runner.Tests/            validation gate + "no user-supplied infrastructure"
-  DevAgent.Worker.DotNet.Tests/     env-var failure, deterministic update/upgrade, build repair, no auto-merge
-  DevAgent.Forge.Tests/             structured tool surface has no shell/exec escape hatch
+  DevAgent.Runner.Tests/            validation gate + "no user-supplied infrastructure" + ref names
+  DevAgent.Worker.DotNet.Tests/     env-var failure, deterministic flows, build repair, no auto-merge
+  DevAgent.Forge.Tests/             structured tool surface has no shell/exec escape hatch; write scopes
   DevAgent.Bridge.Llm.Tests/        provider wire format, tool-schema round-trip, model-per-agent
-  Agents.DependencyPilot.Tests/     detection + watch-list enforcement
-  Agents.DotNetUpgrader.Tests/      upgrade planning + watch-list enforcement
+  DevAgent.Bridge.Ci.Tests/         per-provider URL/auth/parse + log-tail truncation
+  Agents.*.Tests/                   watch-list enforcement, dedupe, read-only guarantees per agent
 ```
 
 ## What each project is for
@@ -69,6 +77,11 @@ tests/
 | **DevAgent.Hub.Api** | The **front door**: manual triggers, the Hangfire schedule, the **agent-status dashboard** (`/`) + `GET /jobs`, and Swagger. Forwards validated jobs to the Runner; never does container work itself. |
 | **Agents.DependencyPilot** | Concrete agent: proposes NuGet `PackageReference` updates for watched repos. |
 | **Agents.DotNetUpgrader** | Concrete agent: proposes upgrading **all projects' target framework** (e.g. → `net10.0`) for watched repos. Wired as the example **scheduled** agent. |
+| **DevAgent.Bridge.Ci** | Read-only CI abstraction over **GitHub Actions, GitLab CI and Azure DevOps Pipelines**: list failed runs, fetch failure-log tails. Tokens are env-var *names*, never stored values. |
+| **Agents.PipelineDoctor** | Watches watched repos' CI (connection per repo, admin-managed) every 30 min; each *new* failed run becomes a `PipelineFix` job — reproduce in a sandbox, agent repair, PR only when green. |
+| **Agents.DocScribe** | Weekly documentation maintenance: deterministic `docs/CODEMAP.md` + agent-written architecture docs, **write-scoped to docs/ + README.md by policy**. |
+| **Agents.CodeReviewer** | PR-opened webhook → `CodeReview` job: a **read-only** agent reviews the diff and posts a comment. Never pushes, never merges. |
+| **Agents.SplunkSentinel / Agents.ConfluenceGuide** | Observer/planner tier with minimal `Bridge.Splunk` / `Bridge.Confluence` clients: scheduled searches and docs→page sync plans as audited findings; Confluence publishing is an explicit operator call. |
 
 Every `Agents.*` project only *proposes* work by key; the Runner re-validates and a sandbox worker performs it. The result is always a reviewable pull request.
 

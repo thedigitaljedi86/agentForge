@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Agents.CodeReviewer.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Agents.CodeReviewer\Agents.CodeReviewer.csproj" />
+  </ItemGroup>
+
+</Project>
