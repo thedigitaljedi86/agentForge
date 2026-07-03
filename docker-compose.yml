@@ -3,7 +3,8 @@
 #   docker compose up --build
 #
 # Then open:
-#   http://localhost:5080/          -> Agent-status dashboard
+#   http://localhost:5080/          -> Landing page
+#   http://localhost:5080/status/   -> Agent-status dashboard
 #   http://localhost:5080/admin/    -> ADMIN CONSOLE (login: admin / DEVAGENT_ADMIN_PASSWORD)
 #   http://localhost:5080/swagger   -> Hub API (manual triggers)
 #   http://localhost:5080/hangfire  -> Schedule (admin login required)

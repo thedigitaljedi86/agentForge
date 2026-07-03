@@ -64,7 +64,7 @@ Here is exactly what happens when Serilog 3.1.1 is published:
 
 2. **DependencyPilot decides.** The agent checks its watch lists: is Serilog a package we watch? Which watched repositories use it, and are they behind? For each affected repository it proposes one job — identified by a **repository key** like `sample-service`, never by a URL.
 
-3. **The Hub records and forwards.** The job appears on the dashboard (`/`) as `Pending`, gets an audit entry, and is sent to the Runner.
+3. **The Hub records and forwards.** The job appears on the dashboard (`/status/`) as `Pending`, gets an audit entry, and is sent to the Runner.
 
 4. **The Runner validates — the gate.** Job type allowlisted? Repository key on the allowlist? Package on the allowlist? (For framework upgrades: target framework allowlisted?) Container image — chosen *by the Runner from policy*, never by the caller — allowlisted? **Any failure → the job is rejected, the rejection is logged, and no container ever starts.** Only now are keys resolved into a real clone URL and image name.
 
@@ -78,7 +78,7 @@ Here is exactly what happens when Serilog 3.1.1 is published:
 
 9. **A human reviews and merges.** Branch protection stays on. DevAgent has no merge button.
 
-Every step above wrote audit events correlated by job id, and the dashboard at `/` (or `GET /jobs`) shows each job's latest status.
+Every step above wrote audit events correlated by job id, and the dashboard at `/status/` (or `GET /jobs`) shows each job's latest status.
 
 ---
 
@@ -113,7 +113,8 @@ Prerequisites: Docker or Podman (with compose), or just the .NET 10 SDK to run t
 
 ```bash
 DEVAGENT_ADMIN_PASSWORD='choose-one' docker compose up --build
-# http://localhost:5080/          → live agent-status dashboard
+# http://localhost:5080/          → landing page
+# http://localhost:5080/status/   → live agent-status dashboard
 # http://localhost:5080/admin/    → ADMIN CONSOLE (allowlists, agents, MCP, skills, webhooks, audit)
 # http://localhost:5080/swagger   → Hub API (manual triggers)
 # http://localhost:5080/hangfire  → schedule (admin login required)
@@ -132,7 +133,7 @@ curl -X POST localhost:5080/hub/dependencypilot/nuget-update \
 
 **3. Watch the gate do its job**
 
-Open the dashboard at `http://localhost:5080/`, or poll the API:
+Open the dashboard at `http://localhost:5080/status/`, or poll the API:
 
 ```bash
 curl localhost:5080/jobs
@@ -345,5 +346,7 @@ tests/                       9 projects, 269 tests — every security invariant 
 docs/
   GUIDE.md                   This document
   index.html                 Single-page getting-started reference (Danish)
-  landing/index.html         The product landing page
+  landing/index.html         The product landing page (mirrored into
+                              DevAgent.Hub.Api/wwwroot/index.html, served at "/" —
+                              re-copy after editing this file)
 ```

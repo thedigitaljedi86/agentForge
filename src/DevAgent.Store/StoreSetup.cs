@@ -1,5 +1,6 @@
 namespace DevAgent.Store;
 
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -41,7 +42,16 @@ public static class StoreSetup
         await SeedAgentsAsync(db, configuration, ct);
         await SeedWebhooksAsync(db, ct);
 
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is SqliteException { SqliteErrorCode: 19 })
+        {
+            // Hub and Runner both seed on startup against the shared SQLite file
+            // (see docker-compose.yml). The loser of that race lands here after
+            // the winner already committed the same seed rows - nothing to do.
+        }
     }
 
     private static async Task SeedGuardAsync(DevAgentDbContext db, IConfiguration configuration, CancellationToken ct)
