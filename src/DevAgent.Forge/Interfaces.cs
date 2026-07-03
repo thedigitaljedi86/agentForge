@@ -89,6 +89,14 @@ public sealed class CodingAgentOptions
     /// CI workflows). Secrets are NEVER editable regardless of this flag.
     /// </summary>
     public bool AllowDeploymentFileEdits { get; set; } = false;
+
+    /// <summary>
+    /// WHERE the agent may write: AllowAll (repair agents), docs-only
+    /// prefixes (DocScribe) or ReadOnly (CodeReviewer). Enforced by the
+    /// file/patch tools, not by the prompt.
+    /// </summary>
+    public DevAgent.Guard.Policies.WriteScopePolicy WriteScope { get; set; }
+        = DevAgent.Guard.Policies.WriteScopePolicy.AllowAll;
 }
 
 /// <summary>

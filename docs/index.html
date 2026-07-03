@@ -329,6 +329,22 @@
 <span class="c-cmt"># Runner afviser frameworks uden for allowlisten (fx net7.0) med status 7 (Rejected).</span></code></pre></div>
     <p class="card">Samme nøgle-baserede gate som NuGet-flowet: <code>repositoryKey</code> + <code>targetFramework</code> valideres mod allowlisten (repo, jobtype, framework) før noget køres.</p>
 
+    <h3><span class="tag post">POST</span> &nbsp;PipelineDoctor, DocScribe &amp; CodeReviewer</h3>
+    <div class="code"><div class="bar"><span>de nye agenter — samme nøgle-gate</span><button class="copy">Kopiér</button></div>
+<pre><code><span class="c-cmt"># Scan et repos CI (GitHub Actions / GitLab CI / Azure DevOps) for fejlede pipelines nu:</span>
+<span class="c-fn">curl</span> -X POST http://localhost:5080/hub/pipelinedoctor/fix <span class="c-pun">\</span>
+  -H <span class="c-str">"Content-Type: application/json"</span> -d <span class="c-str">'{"repositoryKey":"sample-service"}'</span>
+
+<span class="c-cmt"># Opdatér dokumentation (kører også automatisk hver mandag kl. 06):</span>
+<span class="c-fn">curl</span> -X POST http://localhost:5080/hub/docscribe/update <span class="c-pun">\</span>
+  -H <span class="c-str">"Content-Type: application/json"</span> -d <span class="c-str">'{"repositoryKey":"sample-service"}'</span>
+
+<span class="c-cmt"># Anmeld en PR (webhook: /hub/webhooks/pull-request-opened):</span>
+<span class="c-fn">curl</span> -X POST http://localhost:5080/hub/codereviewer/review <span class="c-pun">\</span>
+  -H <span class="c-str">"Content-Type: application/json"</span> <span class="c-pun">\</span>
+  -d <span class="c-str">'{"repositoryKey":"sample-service","sourceBranch":"feature/x","prNumber":42}'</span></code></pre></div>
+    <p class="card">PipelineDoctor kræver en <em>CI-forbindelse</em> pr. repo (provider, base-URL, projektsti, token-miljøvariabel) — oprettes i admin-konsollen under Allowlists. DocScribes agent kan kun skrive i <code>docs/</code> + <code>README.md</code>; CodeReviewers agent er read-only og kan kun aflevere en kommentar.</p>
+
     <h3><span class="tag post">POST</span> &nbsp;Kald Runner direkte — accepteret job</h3>
     <div class="code"><div class="bar"><span>POST /runner/jobs/nuget-update · ✓ allowlisted</span><button class="copy">Kopiér</button></div>
 <pre><code><span class="c-fn">curl</span> -X POST http://localhost:5081/runner/jobs/nuget-update <span class="c-pun">\</span>

@@ -24,4 +24,13 @@ public enum AgentJobType
     /// across every project in a repository, inside a sandbox worker.
     /// </summary>
     DotNetUpgrade = 3,
+
+    /// <summary>Diagnose + repair a failing CI pipeline (PipelineDoctor).</summary>
+    PipelineFix = 4,
+
+    /// <summary>Create/refresh repository documentation (DocScribe). The agent is write-scoped to docs/.</summary>
+    DocUpdate = 5,
+
+    /// <summary>Review a pull request read-only and post a comment (CodeReviewer).</summary>
+    CodeReview = 6,
 }

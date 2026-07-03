@@ -15,4 +15,16 @@ public interface IRunnerClient
     Task<AgentJobResult> StartDotNetUpgradeAsync(
         DotNetUpgradeJobRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<AgentJobResult> StartPipelineFixAsync(
+        PipelineFixJobRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AgentJobResult> StartDocUpdateAsync(
+        DocUpdateJobRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AgentJobResult> StartCodeReviewAsync(
+        CodeReviewJobRequest request,
+        CancellationToken cancellationToken = default);
 }

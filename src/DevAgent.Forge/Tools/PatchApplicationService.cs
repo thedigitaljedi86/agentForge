@@ -18,15 +18,18 @@ public sealed class PatchApplicationService
     private readonly WorkspacePathValidator _paths;
     private readonly ProtectedFilePolicy _protected;
     private readonly bool _allowDeploymentEdits;
+    private readonly WriteScopePolicy _writeScope;
 
     public PatchApplicationService(
         WorkspacePathValidator paths,
         ProtectedFilePolicy protectedFiles,
-        bool allowDeploymentEdits)
+        bool allowDeploymentEdits,
+        WriteScopePolicy? writeScope = null)
     {
         _paths = paths;
         _protected = protectedFiles;
         _allowDeploymentEdits = allowDeploymentEdits;
+        _writeScope = writeScope ?? WriteScopePolicy.AllowAll;
     }
 
     public async Task<ToolCallResult> ApplyAsync(ApplyPatchToolCall call, CancellationToken ct = default)
@@ -35,6 +38,12 @@ public sealed class PatchApplicationService
         if (!pathCheck.IsValid)
         {
             return ToolCallResult.Denied(call, pathCheck.Reason!);
+        }
+
+        var scope = _writeScope.ValidateWrite(call.RelativePath);
+        if (!scope.IsValid)
+        {
+            return ToolCallResult.Denied(call, scope.Reason!);
         }
 
         var editable = _protected.ValidateEditable(call.RelativePath, _allowDeploymentEdits);
