@@ -1,0 +1,10 @@
+# Keep the build context small and reproducible.
+**/bin
+**/obj
+**/.vs
+**/.vscode
+.git
+.gitignore
+*.user
+docs
+**/*.md

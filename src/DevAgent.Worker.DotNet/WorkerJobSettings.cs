@@ -24,15 +24,28 @@ public sealed record WorkerJobSettings
 
     public bool OnlyUpgrade { get; init; } = true;
 
+    /// <summary>
+    /// Optional LLM provider (Claude/OpenAi/Gemini) enabling the in-sandbox
+    /// build-repair step. When null/unparseable, build repair is disabled.
+    /// </summary>
+    public string? LlmProvider { get; init; }
+
+    /// <summary>Optional model id for the build-repair agent (provider default when null).</summary>
+    public string? LlmModel { get; init; }
+
     // Environment variable names, namespaced to avoid collisions.
+    public const string JobTypeVar = "DEVAGENT_JOB_TYPE";
     public const string JobIdVar = "DEVAGENT_JOB_ID";
     public const string CloneUrlVar = "DEVAGENT_CLONE_URL";
     public const string BaseBranchVar = "DEVAGENT_BASE_BRANCH";
     public const string PackageIdVar = "DEVAGENT_PACKAGE_ID";
     public const string TargetVersionVar = "DEVAGENT_TARGET_VERSION";
+    public const string TargetFrameworkVar = "DEVAGENT_TARGET_FRAMEWORK";
     public const string WorkspaceRootVar = "DEVAGENT_WORKSPACE";
     public const string GitTokenVar = "DEVAGENT_GIT_TOKEN";
     public const string OnlyUpgradeVar = "DEVAGENT_ONLY_UPGRADE";
+    public const string LlmProviderVar = "DEVAGENT_LLM_PROVIDER";
+    public const string LlmModelVar = "DEVAGENT_LLM_MODEL";
 
     /// <summary>
     /// Builds settings from a variable lookup (defaults to the process
@@ -85,6 +98,8 @@ public sealed record WorkerJobSettings
             WorkspaceRoot = workspace,
             GitToken = gitToken,
             OnlyUpgrade = onlyUpgrade,
+            LlmProvider = read(LlmProviderVar),
+            LlmModel = read(LlmModelVar),
         };
     }
 }

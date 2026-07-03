@@ -11,4 +11,8 @@ public interface IRunnerClient
     Task<AgentJobResult> StartNuGetUpdateAsync(
         NuGetUpdateJobRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<AgentJobResult> StartDotNetUpgradeAsync(
+        DotNetUpgradeJobRequest request,
+        CancellationToken cancellationToken = default);
 }

@@ -15,6 +15,7 @@
   <ItemGroup>
     <ProjectReference Include="..\DevAgent.Contracts\DevAgent.Contracts.csproj" />
     <ProjectReference Include="..\DevAgent.Guard\DevAgent.Guard.csproj" />
+    <ProjectReference Include="..\DevAgent.Audit\DevAgent.Audit.csproj" />
   </ItemGroup>
 
 </Project>

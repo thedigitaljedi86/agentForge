@@ -1,0 +1,57 @@
+# Run the whole DevAgent platform locally:
+#
+#   docker compose up --build
+#
+# Then open:
+#   http://localhost:5080/          -> Agent-status dashboard
+#   http://localhost:5080/admin/    -> ADMIN CONSOLE (login: admin / DEVAGENT_ADMIN_PASSWORD)
+#   http://localhost:5080/swagger   -> Hub API (manual triggers)
+#   http://localhost:5080/hangfire  -> Schedule (admin login required)
+#   http://localhost:5081/swagger   -> Runner API (validation gate)
+#
+# The Hub forwards validated jobs to the Runner over the internal network.
+# Hub and Runner share the SQLite store on the devagent-data volume: the admin
+# console (Hub) writes it; the Runner reads allowlists/agent settings fresh per
+# job. Set DEVAGENT_ADMIN_PASSWORD before first start (or read the generated
+# one from the hub logs).
+
+name: devagent
+
+services:
+  runner:
+    build:
+      context: .
+      args:
+        PROJECT: src/DevAgent.Runner.Api/DevAgent.Runner.Api.csproj
+        DLL: DevAgent.Runner.Api.dll
+    environment:
+      - ConnectionStrings__DevAgent=Data Source=/data/devagent.db
+      # Where sandboxed workers reach this Runner's MCP gateway.
+      - Runner__Sandbox__McpGatewayBaseUrl=http://runner:8080
+    volumes:
+      - devagent-data:/data
+    ports:
+      - "5081:8080"
+
+  hub:
+    build:
+      context: .
+      args:
+        PROJECT: src/DevAgent.Hub.Api/DevAgent.Hub.Api.csproj
+        DLL: DevAgent.Hub.Api.dll
+    environment:
+      # Reach the Runner by its compose service name on the internal network.
+      - Runner__BaseUrl=http://runner:8080
+      - ConnectionStrings__DevAgent=Data Source=/data/devagent.db
+      # Admin console login (username: admin). If unset, a random password is
+      # generated and printed once in this container's logs.
+      - DEVAGENT_ADMIN_PASSWORD=${DEVAGENT_ADMIN_PASSWORD:-}
+    volumes:
+      - devagent-data:/data
+    ports:
+      - "5080:8080"
+    depends_on:
+      - runner
+
+volumes:
+  devagent-data:

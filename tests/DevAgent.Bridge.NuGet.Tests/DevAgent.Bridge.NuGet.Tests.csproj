@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>DevAgent.Bridge.NuGet.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\DevAgent.Bridge.NuGet\DevAgent.Bridge.NuGet.csproj" />
+  </ItemGroup>
+
+</Project>
