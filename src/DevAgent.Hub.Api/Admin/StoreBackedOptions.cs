@@ -1,7 +1,10 @@
 namespace DevAgent.Hub.Api.Admin;
 
+using Agents.CodeReviewer;
 using Agents.DependencyPilot;
+using Agents.DocScribe;
 using Agents.DotNetUpgrader;
+using Agents.PipelineDoctor;
 using DevAgent.Bridge.Llm;
 using DevAgent.Bridge.NuGet;
 using DevAgent.Store;
@@ -48,6 +51,57 @@ public static class StoreBackedOptions
                 {
                     options.RepositoryKeys = JsonColumns.ToList(row.RepositoryKeysJson).ToList();
                     options.TargetFramework = row.TargetFramework ?? options.TargetFramework;
+                    ApplyLlm(options.Llm, row);
+                }
+
+                return Options.Create(options);
+            }
+        });
+
+        services.AddScoped<IOptions<PipelineDoctorOptions>>(sp =>
+        {
+            var db = sp.GetRequiredService<IDbContextFactory<DevAgentDbContext>>().CreateDbContext();
+            using (db)
+            {
+                var row = db.AgentSettings.AsNoTracking().FirstOrDefault(a => a.AgentName == "PipelineDoctor");
+                var options = new PipelineDoctorOptions();
+                if (row is not null)
+                {
+                    options.RepositoryKeys = JsonColumns.ToList(row.RepositoryKeysJson).ToList();
+                    ApplyLlm(options.Llm, row);
+                }
+
+                return Options.Create(options);
+            }
+        });
+
+        services.AddScoped<IOptions<DocScribeOptions>>(sp =>
+        {
+            var db = sp.GetRequiredService<IDbContextFactory<DevAgentDbContext>>().CreateDbContext();
+            using (db)
+            {
+                var row = db.AgentSettings.AsNoTracking().FirstOrDefault(a => a.AgentName == "DocScribe");
+                var options = new DocScribeOptions();
+                if (row is not null)
+                {
+                    options.RepositoryKeys = JsonColumns.ToList(row.RepositoryKeysJson).ToList();
+                    ApplyLlm(options.Llm, row);
+                }
+
+                return Options.Create(options);
+            }
+        });
+
+        services.AddScoped<IOptions<CodeReviewerOptions>>(sp =>
+        {
+            var db = sp.GetRequiredService<IDbContextFactory<DevAgentDbContext>>().CreateDbContext();
+            using (db)
+            {
+                var row = db.AgentSettings.AsNoTracking().FirstOrDefault(a => a.AgentName == "CodeReviewer");
+                var options = new CodeReviewerOptions();
+                if (row is not null)
+                {
+                    options.RepositoryKeys = JsonColumns.ToList(row.RepositoryKeysJson).ToList();
                     ApplyLlm(options.Llm, row);
                 }
 

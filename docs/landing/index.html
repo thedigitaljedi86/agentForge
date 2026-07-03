@@ -339,7 +339,7 @@ footer{border-top:1px solid var(--hairline);padding:40px 0 56px}
           <a class="btn btn-primary" href="#quickstart">Run the demo</a>
           <a class="btn btn-ghost" href="../GUIDE.md">Read the 10-minute guide</a>
         </div>
-        <p class="hero-note"><span class="ok">269 tests</span> lock the security invariants · .NET 10 · rootless Podman sandboxes</p>
+        <p class="hero-note"><span class="ok">350 tests</span> lock the security invariants · .NET 10 · rootless Podman sandboxes</p>
       </div>
 
       <figure class="term" aria-label="A DevAgent audit trail: one job passes every policy gate and ends in a pull request; a second attempt is denied.">
@@ -750,7 +750,7 @@ footer{border-top:1px solid var(--hairline);padding:40px 0 56px}
   <section id="agents">
     <div class="wrap">
       <p class="eyebrow">One platform, many agents</p>
-      <h2>Two agents shipping. The rails are the product.</h2>
+      <h2>Five agents shipping. The rails are the product.</h2>
       <p class="section-intro">
         Every agent — including yours — inherits the same gate, the same sandbox, the same audit
         trail. Write the agent, not the security model.
@@ -764,32 +764,34 @@ footer{border-top:1px solid var(--hairline);padding:40px 0 56px}
              builds, tests, repairs on failure — and opens the PR.</p>
         </div>
         <div class="agent">
-          <span class="status next">planned</span>
+          <span class="status live">● shipping</span>
           <h3>PipelineDoctor</h3>
-          <p>Reads failed CI pipelines, diagnoses the break and proposes the fix as a reviewable
-             change.</p>
+          <p>Watches failed pipelines on GitHub Actions, GitLab CI and Azure DevOps, reproduces the
+             break in a sandbox and proposes the fix as a reviewable change.</p>
         </div>
         <div class="agent">
-          <span class="status next">planned</span>
+          <span class="status live">● shipping</span>
           <h3>CodeReviewer</h3>
-          <p>First-pass review on incoming PRs: policy-aware, audit-logged, and never the final
-             word.</p>
+          <p>First-pass review on incoming PRs by a read-only agent: policy-aware, audit-logged,
+             and never the final word.</p>
         </div>
         <div class="agent">
-          <span class="status next">planned</span>
-          <h3>SplunkSentinel</h3>
-          <p>Turns recurring log anomalies into tickets with a suspected root cause attached.</p>
-        </div>
-        <div class="agent">
-          <span class="status next">planned</span>
-          <h3>ConfluenceGuide</h3>
-          <p>Keeps runbooks and architecture docs in sync with what the code actually does.</p>
+          <span class="status live">● shipping</span>
+          <h3>DocScribe</h3>
+          <p>Generates a deterministic code map and maintains architecture docs on a weekly
+             schedule — write-scoped to docs/ by policy, so it can never touch code.</p>
         </div>
         <div class="agent">
           <span class="status live">● shipping</span>
           <h3>.NET Upgrader</h3>
           <p>Nightly sweep that upgrades every project in watched repositories to a new target
              framework — built, tested, repaired if needed, and PR&#8217;d.</p>
+        </div>
+        <div class="agent">
+          <span class="status next">observer tier</span>
+          <h3>SplunkSentinel &amp; ConfluenceGuide</h3>
+          <p>Scheduled Splunk searches recorded as audited findings, and a docs&#8209;to&#8209;Confluence
+             sync plan — publishing stays an explicit operator action.</p>
         </div>
       </div>
       <p class="agents-note">

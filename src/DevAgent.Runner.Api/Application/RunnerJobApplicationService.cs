@@ -189,6 +189,170 @@ public sealed class RunnerJobApplicationService
         };
     }
 
+    /// <summary>
+    /// PipelineFix: repair a failing CI pipeline. The failing BRANCH comes
+    /// from CI (external input) and is validated as a conservative ref name;
+    /// the failure log is context only — it carries no authority anywhere.
+    /// </summary>
+    public async Task<AgentJobResult> StartPipelineFixAsync(
+        PipelineFixJobRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var policies = await _policySource.GetAsync(cancellationToken);
+
+        var gate = await ValidateCommonAsync(policies, request.JobType, request.RepositoryKey, request.JobId, cancellationToken);
+        if (gate.Rejection is not null)
+        {
+            return gate.Rejection;
+        }
+
+        var branchCheck = RefNamePolicy.Validate(request.Branch);
+        if (!branchCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "branch-name", branchCheck, cancellationToken);
+        }
+
+        var sandboxRequest = new SandboxJobRequest
+        {
+            JobId = request.JobId,
+            JobType = request.JobType,
+            CloneUrl = gate.Repository!.CloneUrl,
+            // The job starts FROM the failing branch, not the repo default.
+            BaseBranch = request.Branch,
+            ContainerImage = gate.Image!,
+            FailureContext = Truncate(request.FailureContext, 12_000),
+        };
+
+        return await DispatchAsync(request.JobId, sandboxRequest, request.RequestedBy,
+            $"All allowlists passed for {request.RepositoryKey} (failing branch '{request.Branch}').", cancellationToken);
+    }
+
+    /// <summary>DocUpdate: generate/refresh documentation for a repository.</summary>
+    public async Task<AgentJobResult> StartDocUpdateAsync(
+        DocUpdateJobRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var policies = await _policySource.GetAsync(cancellationToken);
+
+        var gate = await ValidateCommonAsync(policies, request.JobType, request.RepositoryKey, request.JobId, cancellationToken);
+        if (gate.Rejection is not null)
+        {
+            return gate.Rejection;
+        }
+
+        var sandboxRequest = new SandboxJobRequest
+        {
+            JobId = request.JobId,
+            JobType = request.JobType,
+            CloneUrl = gate.Repository!.CloneUrl,
+            BaseBranch = gate.Repository.BaseBranch,
+            ContainerImage = gate.Image!,
+        };
+
+        return await DispatchAsync(request.JobId, sandboxRequest, request.RequestedBy,
+            $"All allowlists passed for {request.RepositoryKey} (documentation update).", cancellationToken);
+    }
+
+    /// <summary>
+    /// CodeReview: review a PR's changes. The source branch is external input
+    /// (PR webhook) and is validated as a conservative ref name. The review
+    /// worker never pushes — its only output is a PR comment.
+    /// </summary>
+    public async Task<AgentJobResult> StartCodeReviewAsync(
+        CodeReviewJobRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var policies = await _policySource.GetAsync(cancellationToken);
+
+        var gate = await ValidateCommonAsync(policies, request.JobType, request.RepositoryKey, request.JobId, cancellationToken);
+        if (gate.Rejection is not null)
+        {
+            return gate.Rejection;
+        }
+
+        var branchCheck = RefNamePolicy.Validate(request.SourceBranch);
+        if (!branchCheck.IsValid)
+        {
+            return await RejectAsync(request.JobId, "branch-name", branchCheck, cancellationToken);
+        }
+
+        var sandboxRequest = new SandboxJobRequest
+        {
+            JobId = request.JobId,
+            JobType = request.JobType,
+            CloneUrl = gate.Repository!.CloneUrl,
+            BaseBranch = gate.Repository.BaseBranch,
+            ContainerImage = gate.Image!,
+            SourceBranch = request.SourceBranch,
+            PrNumber = request.PrNumber,
+        };
+
+        return await DispatchAsync(request.JobId, sandboxRequest, request.RequestedBy,
+            $"All allowlists passed for {request.RepositoryKey} (review of '{request.SourceBranch}').", cancellationToken);
+    }
+
+    // ---- shared gate + dispatch for the task-style jobs ----
+
+    private sealed record CommonGate(AgentJobResult? Rejection, RepositoryEntry? Repository, string? Image);
+
+    /// <summary>Job-type + repository + image allowlists — identical for every job.</summary>
+    private async Task<CommonGate> ValidateCommonAsync(
+        GuardPolicySet policies, AgentJobType jobType, string repositoryKey, string jobId, CancellationToken cancellationToken)
+    {
+        var jobTypeCheck = policies.JobTypes.Validate(jobType);
+        if (!jobTypeCheck.IsValid)
+        {
+            return new CommonGate(await RejectAsync(jobId, "job-type", jobTypeCheck, cancellationToken), null, null);
+        }
+
+        var repoCheck = policies.Repositories.Validate(repositoryKey);
+        if (!repoCheck.IsValid)
+        {
+            return new CommonGate(await RejectAsync(jobId, "repository", repoCheck, cancellationToken), null, null);
+        }
+
+        var repository = policies.Repositories.Resolve(repositoryKey);
+        var image = policies.JobTypes.ResolveImage(jobType);
+
+        var imageCheck = policies.ContainerImages.Validate(image);
+        if (!imageCheck.IsValid)
+        {
+            return new CommonGate(await RejectAsync(jobId, "container-image", imageCheck, cancellationToken), null, null);
+        }
+
+        return new CommonGate(null, repository, image);
+    }
+
+    private async Task<AgentJobResult> DispatchAsync(
+        string jobId, SandboxJobRequest sandboxRequest, string requestedBy, string reason, CancellationToken cancellationToken)
+    {
+        await _audit.WriteAsync(new DecisionAuditEvent
+        {
+            JobId = jobId,
+            Actor = nameof(RunnerJobApplicationService),
+            Decision = "start-sandbox-job",
+            Allowed = true,
+            Reason = reason,
+        }, cancellationToken);
+
+        // Attach the requesting agent's capabilities (LLM pin, MCP grants,
+        // skills) — resolved from the admin store, never from the caller.
+        sandboxRequest = await _enricher.EnrichAsync(sandboxRequest, requestedBy, cancellationToken);
+
+        var sandboxResult = await _sandboxRunner.RunAsync(sandboxRequest, cancellationToken);
+
+        return new AgentJobResult
+        {
+            JobId = sandboxResult.JobId,
+            Status = sandboxResult.Status,
+            Message = sandboxResult.Message,
+            PullRequestUrl = sandboxResult.PullRequestUrl,
+        };
+    }
+
+    private static string? Truncate(string? text, int max) =>
+        text is null || text.Length <= max ? text : text[^max..];
+
     private async Task<AgentJobResult> RejectAsync(
         string jobId, string gate, ValidationResult result, CancellationToken cancellationToken)
     {

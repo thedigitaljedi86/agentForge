@@ -27,6 +27,7 @@ public sealed class CommandPolicy
             ["git"] = new(StringComparer.Ordinal)
             {
                 "clone", "checkout", "switch", "add", "commit", "push", "config", "status", "rev-parse",
+                "fetch", "diff",
             },
         };
 
