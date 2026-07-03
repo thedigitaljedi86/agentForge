@@ -19,10 +19,15 @@ public class DevAgentDbContext : DbContext
     public DbSet<AgentSettingEntity> AgentSettings => Set<AgentSettingEntity>();
     public DbSet<AdminUserEntity> AdminUsers => Set<AdminUserEntity>();
     public DbSet<ConfigChangeEntity> ConfigChanges => Set<ConfigChangeEntity>();
+    public DbSet<CiConnectionEntity> CiConnections => Set<CiConnectionEntity>();
+    public DbSet<ProcessedPipelineRunEntity> ProcessedPipelineRuns => Set<ProcessedPipelineRunEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<PackageUsageEntity>()
             .HasKey(u => new { u.RepositoryKey, u.PackageId });
+
+        modelBuilder.Entity<ProcessedPipelineRunEntity>()
+            .HasKey(r => new { r.RepositoryKey, r.RunId });
     }
 }

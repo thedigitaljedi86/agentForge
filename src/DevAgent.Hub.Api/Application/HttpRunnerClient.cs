@@ -56,29 +56,65 @@ public sealed class HttpRunnerClient : IRunnerClient
         }
     }
 
-    public async Task<AgentJobResult> StartDotNetUpgradeAsync(
+    public Task<AgentJobResult> StartDotNetUpgradeAsync(
         DotNetUpgradeJobRequest request,
         CancellationToken cancellationToken = default)
-    {
-        var body = new
+        => PostAsync("/runner/jobs/dotnet-upgrade", request.JobId, new
         {
             jobId = request.JobId,
             repositoryKey = request.RepositoryKey,
             targetFramework = request.TargetFramework,
             onlyUpgrade = request.OnlyUpgrade,
             requestedBy = request.RequestedBy,
-        };
+        }, cancellationToken);
 
+    public Task<AgentJobResult> StartPipelineFixAsync(
+        PipelineFixJobRequest request,
+        CancellationToken cancellationToken = default)
+        => PostAsync("/runner/jobs/pipeline-fix", request.JobId, new
+        {
+            jobId = request.JobId,
+            repositoryKey = request.RepositoryKey,
+            branch = request.Branch,
+            failureContext = request.FailureContext,
+            requestedBy = request.RequestedBy,
+        }, cancellationToken);
+
+    public Task<AgentJobResult> StartDocUpdateAsync(
+        DocUpdateJobRequest request,
+        CancellationToken cancellationToken = default)
+        => PostAsync("/runner/jobs/doc-update", request.JobId, new
+        {
+            jobId = request.JobId,
+            repositoryKey = request.RepositoryKey,
+            requestedBy = request.RequestedBy,
+        }, cancellationToken);
+
+    public Task<AgentJobResult> StartCodeReviewAsync(
+        CodeReviewJobRequest request,
+        CancellationToken cancellationToken = default)
+        => PostAsync("/runner/jobs/code-review", request.JobId, new
+        {
+            jobId = request.JobId,
+            repositoryKey = request.RepositoryKey,
+            sourceBranch = request.SourceBranch,
+            prNumber = request.PrNumber,
+            requestedBy = request.RequestedBy,
+        }, cancellationToken);
+
+    private async Task<AgentJobResult> PostAsync(
+        string path, string jobId, object body, CancellationToken cancellationToken)
+    {
         // An unreachable Runner is a FAILED job, not an unhandled exception —
         // webhooks and schedules must degrade gracefully and leave a record.
         try
         {
-            using var response = await _http.PostAsJsonAsync("/runner/jobs/dotnet-upgrade", body, cancellationToken);
+            using var response = await _http.PostAsJsonAsync(path, body, cancellationToken);
 
             var result = await response.Content.ReadFromJsonAsync<AgentJobResult>(cancellationToken: cancellationToken);
             return result ?? new AgentJobResult
             {
-                JobId = request.JobId,
+                JobId = jobId,
                 Status = AgentJobStatus.Failed,
                 Message = $"Runner returned an unreadable response ({(int)response.StatusCode}).",
             };
@@ -87,7 +123,7 @@ public sealed class HttpRunnerClient : IRunnerClient
         {
             return new AgentJobResult
             {
-                JobId = request.JobId,
+                JobId = jobId,
                 Status = AgentJobStatus.Failed,
                 Message = $"Runner unreachable: {ex.Message}",
             };

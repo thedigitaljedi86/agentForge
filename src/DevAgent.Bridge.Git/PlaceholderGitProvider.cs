@@ -39,4 +39,24 @@ public sealed class PlaceholderGitProvider : IGitProvider
             Message = "Placeholder provider did not contact a real Git host.",
         });
     }
+
+    public Task<PullRequestResult> PostPullRequestCommentAsync(
+        GitRepository repository,
+        int prNumber,
+        string comment,
+        CancellationToken cancellationToken = default)
+    {
+        // The placeholder logs the review so the flow is observable end-to-end
+        // without a real provider. Real providers post via their REST API using
+        // the limited bot token — still comment-only, never merge.
+        Console.WriteLine($"[git-placeholder] PR #{prNumber} review comment ({comment.Length} chars):");
+        Console.WriteLine(comment);
+
+        return Task.FromResult(new PullRequestResult
+        {
+            Created = true,
+            Url = $"(placeholder) comment on PR #{prNumber}",
+            Message = "Placeholder provider did not contact a real Git host.",
+        });
+    }
 }

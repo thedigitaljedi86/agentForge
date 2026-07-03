@@ -170,6 +170,13 @@ public sealed class CliSandboxJobRunner : ISandboxJobRunner
         Env("DEVAGENT_GIT_TOKEN", _options.WorkerGitToken);
         Env("DEVAGENT_ONLY_UPGRADE", request.OnlyUpgrade.ToString().ToLowerInvariant());
 
+        // Task-style jobs: CI failure context (already truncated by the
+        // application service), PR source branch and PR number. All validated
+        // upstream; still only ever VALUES in single vector elements.
+        Env("DEVAGENT_FAILURE_CONTEXT", request.FailureContext);
+        Env("DEVAGENT_SOURCE_BRANCH", request.SourceBranch);
+        Env("DEVAGENT_PR_NUMBER", request.PrNumber?.ToString());
+
         // Repair model: the agent's admin-configured pin wins; the operator's
         // sandbox-level fallback applies otherwise. Never caller-chosen.
         Env("DEVAGENT_LLM_PROVIDER", string.IsNullOrEmpty(request.LlmProvider) ? _options.LlmProvider : request.LlmProvider);

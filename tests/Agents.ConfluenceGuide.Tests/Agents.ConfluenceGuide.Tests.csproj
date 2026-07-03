@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Agents.ConfluenceGuide.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Agents.ConfluenceGuide\Agents.ConfluenceGuide.csproj" />
+  </ItemGroup>
+
+</Project>

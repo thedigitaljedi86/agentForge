@@ -59,8 +59,16 @@ public class StoreTests : IDisposable
             Assert.Equal("NuGetUpdate", (await db.JobTypeImages.SingleAsync()).JobType);
             Assert.Equal("net10.0", (await db.TargetFrameworks.SingleAsync()).Framework);
             Assert.Equal("2.0.0", (await db.PackageUsages.SingleAsync()).CurrentVersion);
-            Assert.Equal(2, await db.AgentSettings.CountAsync());
-            Assert.True((await db.Webhooks.SingleAsync()).Enabled);
+
+            // Every shipped agent receives a settings row on first run.
+            var agents = await db.AgentSettings.Select(a => a.AgentName).ToListAsync();
+            Assert.Equal(
+                new[] { "CodeReviewer", "DependencyPilot", "DocScribe", "DotNetUpgrader", "PipelineDoctor" },
+                agents.OrderBy(a => a, StringComparer.Ordinal));
+
+            var webhooks = await db.Webhooks.ToListAsync();
+            Assert.Equal(2, webhooks.Count); // nuget-package-published + pull-request-opened
+            Assert.All(webhooks, w => Assert.True(w.Enabled));
         }
     }
 
